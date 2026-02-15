@@ -5,7 +5,6 @@
 
 ```mermaid
 sequenceDiagram
-    direction TB
     
     actor User
     participant App as Frontend (React)
