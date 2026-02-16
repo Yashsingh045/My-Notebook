@@ -9,7 +9,7 @@ sequenceDiagram
     actor User
     participant App as Frontend (React)
     participant API as Backend (Node.js)
-    participant DB as MongoDB Atlas
+    participant DB as PostgreSQL (Prisma)
     participant GDrive as Google Drive API
     participant AI as AI Engine (OpenAI)
 

@@ -131,7 +131,7 @@ classDiagram
     }
 
     class FolderService {
-        -db: DatabaseClient
+        -db: PrismaClient
         +createSubject(data: CreateSubjectDTO) Promise~Subject~
     }
 

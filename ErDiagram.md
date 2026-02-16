@@ -1,7 +1,7 @@
 # My Notebook: Personal Knowledge Management & Learning Platform 
 ## ER Diagram
 
-### Database Schema (MongoDB Atlas)
+### Database Schema (PostgreSQL via Prisma)
 
 ```mermaid
 erDiagram
