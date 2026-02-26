@@ -3,13 +3,15 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import connectDB from './config/db';
+import { connectDB } from './config/db';
+import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
 
 dotenv.config();
 
-// Connect to Database
+// Connect to Database and Redis
 connectDB();
+connectRedis();
 
 const app = express();
 const PORT = process.env.PORT || 5001;

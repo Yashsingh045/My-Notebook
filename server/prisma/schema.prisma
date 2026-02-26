@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  username     String
+  passwordHash String
+  subjects     Subject[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topics    Topic[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  notes     Note[]
+  files     File[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Note {
+  id          String       @id @default(cuid())
+  title       String
+  textBody    String?      @db.Text
+  tags        String[]
+  topicId     String
+  topic       Topic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  mcqs        Mcq[]
+  summaries   Summary[]
+  sharedLinks SharedLink[]
+  drawings    Drawing[]
+  files       File[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Mcq {
+  id         String   @id @default(cuid())
+  question   String
+  options    String[]
+  answer     String
+  isSaved    Boolean  @default(false)
+  visibility String   @default("VISIBLE")
+  noteId     String
+  note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Summary {
+  id          String   @id @default(cuid())
+  summaryText String   @db.Text
+  noteId      String
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SharedLink {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Drawing {
+  id         String   @id @default(cuid())
+  canvasData String   @db.Text
+  color      String
+  brushSize  Float
+  noteId     String
+  note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model File {
+  id        String   @id @default(cuid())
+  name      String
+  type      String // e.g., 'pdf', 'video', 'image'
+  driveId   String // Google Drive File ID
+  driveType String // 'DOCS' or 'MEDIA' - tracks which account stores it
+  noteId    String?
+  note      Note?    @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  topicId   String?
+  topic     Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
