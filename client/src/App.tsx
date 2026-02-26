@@ -1,16 +1,21 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout/Layout';
+import Dashboard from './pages/Dashboard/Dashboard';
+import NotesView from './pages/Notes/NotesView';
 import './App.css';
 
 function App() {
   return (
     <Router>
-      <div className="app-container">
-        <h1>My-Notebook</h1>
+      <Layout>
         <Routes>
-          <Route path="/" element={<div>Welcome to My-Notebook</div>} />
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/notes/:id" element={<NotesView />} />
+          <Route path="/favorites" element={<div>Favorites Page</div>} />
+          <Route path="/settings" element={<div>Settings Page</div>} />
           {/* Add more routes as we implement pages */}
         </Routes>
-      </div>
+      </Layout>
     </Router>
   );
 }

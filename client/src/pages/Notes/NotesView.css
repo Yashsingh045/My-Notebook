@@ -1,0 +1,155 @@
+.notes-view-container {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.notes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.breadcrumb {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.notes-header h2 {
+    font-size: 2rem;
+    margin-bottom: 12px;
+}
+
+.tags-row {
+    display: flex;
+    gap: 8px;
+}
+
+.tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.notes-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.notes-actions .action-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+}
+
+.notes-actions .action-btn.primary {
+    width: auto;
+    padding: 0 24px;
+    gap: 10px;
+    background: var(--accent-gradient);
+    border: none;
+    color: white;
+}
+
+.notes-main-content {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 32px;
+    align-items: start;
+}
+
+.note-body {
+    padding: 40px;
+    border-radius: var(--radius-lg);
+    min-height: 60vh;
+}
+
+.note-body h3 {
+    margin-bottom: 20px;
+}
+
+.note-body p {
+    color: #cbd5e1;
+    line-height: 1.8;
+    margin-bottom: 24px;
+    font-size: 1.05rem;
+}
+
+.equation-box {
+    padding: 24px;
+    border-radius: var(--radius-md);
+    background: rgba(109, 40, 217, 0.05);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.2rem;
+    text-align: center;
+    margin: 32px 0;
+    color: var(--accent-secondary);
+}
+
+.ai-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.ai-tools,
+.annotations-preview {
+    padding: 24px;
+    border-radius: var(--radius-lg);
+}
+
+.ai-tools h3,
+.annotations-preview h3 {
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tool-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ai-tool-item {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.simple-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-glass);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+    .notes-main-content {
+        grid-template-columns: 1fr;
+    }
+}
