@@ -7,6 +7,7 @@ import { connectDB } from './config/db';
 import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
 import libraryRoutes from './routes/libraryRoutes';
+import noteRoutes from './routes/noteRoutes';
 
 dotenv.config();
 
