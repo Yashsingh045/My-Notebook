@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { connectDB } from './config/db';
 import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
+import libraryRoutes from './routes/libraryRoutes';
 
 dotenv.config();
 
