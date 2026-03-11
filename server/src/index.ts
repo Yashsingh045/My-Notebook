@@ -8,6 +8,7 @@ import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
 import libraryRoutes from './routes/libraryRoutes';
 import noteRoutes from './routes/noteRoutes';
+import fileRoutes from './routes/fileRoutes';
 
 dotenv.config();
 
