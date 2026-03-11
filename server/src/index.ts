@@ -10,6 +10,7 @@ import libraryRoutes from './routes/libraryRoutes';
 import noteRoutes from './routes/noteRoutes';
 import fileRoutes from './routes/fileRoutes';
 import aiRoutes from './routes/aiRoutes';
+import shareRoutes from './routes/shareRoutes';
 
 dotenv.config();
 
@@ -28,6 +29,11 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/library', libraryRoutes);
+app.use('/api/notes', noteRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/share', shareRoutes);
 
 // Basic Route
 app.get('/', (req: Request, res: Response) => {
