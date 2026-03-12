@@ -1,11 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/Auth/LoginPage';
+import RegisterPage from './pages/Auth/RegisterPage';
 
 // ─── Phase-Specific Route Placeholders ────────────────────
-const DashboardPlaceholder = () => <div className="p-20 text-white">Dashboard (Phase 4)</div>;
-const LoginPlaceholder = () => <div className="p-20 text-white">Login Page (Phase 3)</div>;
-const RegisterPlaceholder = () => <div className="p-20 text-white">Register Page (Phase 3)</div>;
+const DashboardPlaceholder = () => <div className="p-20 text-white flex flex-col items-center justify-center min-h-screen">
+    <h1 className="text-4xl font-bold mb-4 font-display">Vault Access Granted</h1>
+    <p className="text-slate-400">Dashboard implementation coming in Phase 4.</p>
+</div>;
 // ─────────────────────────────────────────────────────────────
 
 function App() {
@@ -15,8 +18,8 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPlaceholder />} />
-          <Route path="/register" element={<RegisterPlaceholder />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
           {/* Protected Routes (Placeholder) */}
           <Route path="/dashboard" element={<DashboardPlaceholder />} />
