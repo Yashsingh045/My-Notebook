@@ -1,5 +1,5 @@
-import React from 'react';
 import Sidebar from '../../components/Dashboard/Sidebar';
+import NoteEditor from '../../components/Editor/NoteEditor';
 import { useLibrary } from '../../context/LibraryContext';
 import { BookOpen, Clock, Sparkles } from 'lucide-react';
 
@@ -40,34 +40,13 @@ const DashboardPage: React.FC = () => {
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto">
                     {activeTopic ? (
-                        /* Case: Topic Active (Phase 5 will render Editor here) */
-                        <div className="p-12 max-w-5xl mx-auto space-y-8 animate-fade-in">
-                            <div className="space-y-4">
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                                    <Sparkles size={12} />
-                                    <span>Active Context</span>
-                                </div>
-                                <h1 className="text-5xl font-bold text-white font-display">
-                                    {activeTopic.topicName}
-                                </h1>
-                                <p className="text-slate-400 text-lg">
-                                    This topic is being synced securely from your <span className="text-slate-200">"{activeTopic.subjectName}"</span> folder.
-                                </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-8">
-                                <div className="glass-card p-8 rounded-3xl border-emerald-500/20 group hover:bg-emerald-500/5 transition-all cursor-pointer">
-                                    <h3 className="text-xl font-bold text-white mb-2">Notes</h3>
-                                    <p className="text-slate-500 text-sm mb-6">Create rich-text studies with TipTap.</p>
-                                    <span className="text-emerald-400 text-xs font-semibold uppercase tracking-widest">Coming in Phase 5</span>
-                                </div>
-                                <div className="glass-card p-8 rounded-3xl group hover:bg-emerald-500/5 transition-all cursor-pointer">
-                                    <h3 className="text-xl font-bold text-white mb-2">Assets</h3>
-                                    <p className="text-slate-500 text-sm mb-6">Upload PDFs, Images, and CSVs to Drive.</p>
-                                    <span className="text-emerald-400 text-xs font-semibold uppercase tracking-widest">Coming in Phase 6</span>
-                                </div>
-                            </div>
-                        </div>
+                        /* Case: Topic Active (Rendering the TipTap Editor) */
+                        <NoteEditor 
+                            key={activeTopic.data.folderId}
+                            driveId="primary" 
+                            topicName={activeTopic.topicName}
+                            noteId={`${activeTopic.topicName}_note.json`}
+                        />
                     ) : (
                         /* Case: Welcome / Empty State */
                         <div className="flex flex-col items-center justify-center min-h-full p-20 text-center animate-fade-in">
