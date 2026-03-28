@@ -18,6 +18,8 @@ interface Subject {
 interface LibraryContextType {
     subjects: { [key: string]: Subject };
     loading: boolean;
+    selectedDriveId: string;
+    setSelectedDriveId: (id: string) => void;
     activeTopic: { subjectName: string; topicName: string; data: Topic } | null;
     setActiveTopic: (topic: { subjectName: string; topicName: string; data: Topic } | null) => void;
     refreshLibrary: () => Promise<void>;
@@ -31,6 +33,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const { user, needsDriveConnection } = useAuth();
     const [subjects, setSubjects] = useState<{ [key: string]: Subject }>({});
     const [loading, setLoading] = useState(false);
+    const [selectedDriveId, setSelectedDriveId] = useState('primary');
     const [activeTopic, setActiveTopic] = useState<{ subjectName: string; topicName: string; data: Topic } | null>(null);
 
     const refreshLibrary = async () => {
@@ -38,6 +41,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setLoading(true);
         try {
             const data = await libraryService.getLibrary();
+            // Note: Currently backend returns primary, but we've built for expansion.
             setSubjects(data.subjects || {});
         } catch (error) {
             console.error('Failed to sync library vault:', error);
@@ -64,6 +68,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         <LibraryContext.Provider value={{ 
             subjects, 
             loading, 
+            selectedDriveId,
+            setSelectedDriveId,
             activeTopic, 
             setActiveTopic, 
             refreshLibrary,

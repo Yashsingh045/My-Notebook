@@ -1,13 +1,16 @@
+import React, { useState } from 'react';
 import Sidebar from '../../components/Dashboard/Sidebar';
 import NoteEditor from '../../components/Editor/NoteEditor';
+import FileExplorer from '../../components/FileExplorer/FileExplorer';
 import { useLibrary } from '../../context/LibraryContext';
-import { BookOpen, Clock, Sparkles } from 'lucide-react';
+import { BookOpen, Clock, Sparkles, FileText, FolderOpen } from 'lucide-react';
 
 const DashboardPage: React.FC = () => {
-    const { activeTopic, loading } = useLibrary();
+    const { activeTopic, loading, selectedDriveId } = useLibrary();
+    const [activeTab, setActiveTab] = useState<'notes' | 'files'>('notes');
 
     return (
-        <div className="flex h-screen bg-slate-950 overflow-hidden">
+        <div className="flex h-screen bg-slate-950 overflow-hidden text-slate-50">
             {/* Left Section: Nav Tree */}
             <Sidebar />
 
@@ -30,6 +33,26 @@ const DashboardPage: React.FC = () => {
                         )}
                     </div>
 
+                    {/* Tab Switcher (Only visible when a topic is selected) */}
+                    {activeTopic && (
+                        <div className="flex bg-slate-900/50 p-1 rounded-xl border border-white/5">
+                            <button 
+                                onClick={() => setActiveTab('notes')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeTab === 'notes' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <FileText size={14} />
+                                Notes
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('files')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeTab === 'files' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <FolderOpen size={14} />
+                                Assets
+                            </button>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-4">
                         <button className="text-slate-500 hover:text-white transition-colors">
                             <Clock size={20} />
@@ -40,13 +63,22 @@ const DashboardPage: React.FC = () => {
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto">
                     {activeTopic ? (
-                        /* Case: Topic Active (Rendering the TipTap Editor) */
-                        <NoteEditor 
-                            key={activeTopic.data.folderId}
-                            driveId="primary" 
-                            topicName={activeTopic.topicName}
-                            noteId={`${activeTopic.topicName}_note.json`}
-                        />
+                        activeTab === 'notes' ? (
+                            /* Mode: Note Editor */
+                            <NoteEditor 
+                                key={`edit-${activeTopic.data.folderId}`}
+                                driveId={selectedDriveId} 
+                                topicName={activeTopic.topicName}
+                                noteId={`${activeTopic.topicName}_note.json`}
+                            />
+                        ) : (
+                            /* Mode: File Explorer */
+                            <FileExplorer 
+                                key={`files-${activeTopic.data.folderId}`}
+                                driveId={selectedDriveId}
+                                topicName={activeTopic.topicName}
+                            />
+                        )
                     ) : (
                         /* Case: Welcome / Empty State */
                         <div className="flex flex-col items-center justify-center min-h-full p-20 text-center animate-fade-in">
