@@ -7,6 +7,7 @@ import { INoteService } from '../interfaces/INoteService';
 /**
  * ShareService (OOP Implementation)
  * Manages the generation, expiry, and content resolution of public sharing links.
+ * Uses secure tokens for public resolution to protect internal primary keys.
  */
 export class ShareService implements IShareService {
     constructor(
@@ -27,27 +28,29 @@ export class ShareService implements IShareService {
         const expiresAt = ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000) : null;
 
         // Create the record in the database
+        // We use driveAccountId and driveFileId to match the reconstructed Prisma schema
         const sharedLink = await prisma.sharedLink.create({
             data: {
                 userId,
-                driveId,
-                noteId,
+                token: uuidv4(),
+                driveAccountId: driveId,
+                driveFileId: noteId,
                 expiresAt,
             }
         });
 
         // Resolve return URL (In a production app, use actual base URL)
         const baseUrl = process.env.BASE_URL || 'http://localhost:5001';
-        return `${baseUrl}/api/share/${sharedLink.id}`;
+        return `${baseUrl}/api/share/${sharedLink.token}`;
     }
 
     /**
-     * Resolves a public share ID into the note's content.
+     * Resolves a public share TOKEN into the note's content.
      */
-    public async getSharedContent(shareId: string): Promise<SharedNoteResult> {
-        // 1. Fetch the sharing record
+    public async getSharedContent(token: string): Promise<SharedNoteResult> {
+        // 1. Fetch the sharing record by its secure TOKEN
         const sharedLink = await prisma.sharedLink.findUnique({
-            where: { id: shareId },
+            where: { token },
             include: { user: { select: { username: true } } }
         });
 
@@ -62,13 +65,13 @@ export class ShareService implements IShareService {
         // Note: We use the owner's credentials to fetch the note
         const note = await this.noteService.getNote(
             sharedLink.userId, 
-            sharedLink.driveId!, 
-            sharedLink.noteId
+            sharedLink.driveAccountId, 
+            sharedLink.driveFileId
         );
 
         // 4. Increment View Count (Background)
         prisma.sharedLink.update({
-            where: { id: shareId },
+            where: { id: sharedLink.id },
             data: { viewCount: { increment: 1 } }
         }).catch(err => console.error('Failed to increment view count:', err));
 
@@ -76,7 +79,7 @@ export class ShareService implements IShareService {
             title: note.title,
             content: note.content,
             ownerName: sharedLink.user.username,
-            expiresAt: sharedLink.expiresAt
+            expiresAt: sharedLink.expiresAt ? sharedLink.expiresAt : null
         };
     }
 
@@ -84,6 +87,7 @@ export class ShareService implements IShareService {
      * Terminates a public sharing link immediately.
      */
     public async revokeShare(userId: string, shareId: string): Promise<void> {
+        // We allow revocation via the internal ID for management purposes
         const link = await prisma.sharedLink.findFirst({
             where: { id: shareId, userId }
         });

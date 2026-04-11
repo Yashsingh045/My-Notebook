@@ -61,7 +61,7 @@ export class FileController {
                 return;
             }
 
-            const files = await this.fileService.listFiles(userId, driveId as string, topicId);
+            const files = await this.fileService.listFiles(userId, driveId as string, topicId as string);
             res.json(files);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -83,7 +83,7 @@ export class FileController {
                 return;
             }
 
-            await this.fileService.deleteFile(userId, driveId as string, id);
+            await this.fileService.deleteFile(userId, driveId as string, id as string);
             res.json({ message: 'File deleted successfully.' });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });

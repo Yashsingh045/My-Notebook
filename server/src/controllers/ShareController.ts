@@ -36,7 +36,7 @@ export class ShareController {
     public getSharedContent = async (req: Request, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
-            const content = await this.shareService.getSharedContent(id);
+            const content = await this.shareService.getSharedContent(id as string);
             res.json(content);
         } catch (error) {
             const msg = (error as Error).message;
@@ -56,7 +56,7 @@ export class ShareController {
             const userId = (req as any).user.id;
             const { id } = req.params;
 
-            await this.shareService.revokeShare(userId, id);
+            await this.shareService.revokeShare(userId, id as string);
             res.json({ message: 'Share link revoked successfully.' });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });

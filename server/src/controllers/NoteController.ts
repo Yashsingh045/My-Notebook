@@ -45,7 +45,7 @@ export class NoteController {
                 return;
             }
 
-            const note = await this.noteService.getNote(userId, driveId as string, id);
+            const note = await this.noteService.getNote(userId, driveId as string, id as string);
             res.json(note);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -67,7 +67,7 @@ export class NoteController {
                 return;
             }
 
-            await this.noteService.updateNote(userId, driveId, id, { title, content, tags });
+            await this.noteService.updateNote(userId, driveId as string, id as string, { title, content, tags });
             res.json({ message: 'Note updated successfully.' });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -89,7 +89,7 @@ export class NoteController {
                 return;
             }
 
-            await this.noteService.deleteNote(userId, driveId as string, id);
+            await this.noteService.deleteNote(userId, driveId as string, id as string);
             res.json({ message: 'Note deleted successfully.' });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -111,7 +111,7 @@ export class NoteController {
                 return;
             }
 
-            const notes = await this.noteService.listNotes(userId, driveId as string, topicId);
+            const notes = await this.noteService.listNotes(userId, driveId as string, topicId as string);
             res.json(notes);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
