@@ -64,18 +64,19 @@ const DashboardPage: React.FC = () => {
                 <div className="flex-1 overflow-y-auto">
                     {activeTopic ? (
                         activeTab === 'notes' ? (
-                            /* Mode: Note Editor */
+                            /* Mode: Note Editor — pass real Drive folder ID */
                             <NoteEditor 
                                 key={`edit-${activeTopic.data.folderId}`}
-                                driveId={selectedDriveId} 
+                                driveId={selectedDriveId || ''} 
+                                topicId={activeTopic.data.folderId}
                                 topicName={activeTopic.topicName}
-                                noteId={`${activeTopic.topicName}_note.json`}
                             />
                         ) : (
-                            /* Mode: File Explorer */
+                            /* Mode: File Explorer — pass real Drive folder ID */
                             <FileExplorer 
                                 key={`files-${activeTopic.data.folderId}`}
-                                driveId={selectedDriveId}
+                                driveId={selectedDriveId || ''}
+                                topicId={activeTopic.data.folderId}
                                 topicName={activeTopic.topicName}
                             />
                         )

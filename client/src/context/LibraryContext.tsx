@@ -18,8 +18,7 @@ interface Subject {
 interface LibraryContextType {
     subjects: { [key: string]: Subject };
     loading: boolean;
-    selectedDriveId: string;
-    setSelectedDriveId: (id: string) => void;
+    selectedDriveId: string | null;
     activeTopic: { subjectName: string; topicName: string; data: Topic } | null;
     setActiveTopic: (topic: { subjectName: string; topicName: string; data: Topic } | null) => void;
     refreshLibrary: () => Promise<void>;
@@ -30,18 +29,17 @@ interface LibraryContextType {
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
 
 export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, needsDriveConnection } = useAuth();
+    const { user, needsDriveConnection, primaryDriveId } = useAuth();
     const [subjects, setSubjects] = useState<{ [key: string]: Subject }>({});
     const [loading, setLoading] = useState(false);
-    const [selectedDriveId, setSelectedDriveId] = useState('primary');
     const [activeTopic, setActiveTopic] = useState<{ subjectName: string; topicName: string; data: Topic } | null>(null);
 
     const refreshLibrary = async () => {
-        if (!user || needsDriveConnection) return;
+        // Bug fix: only fetch if user has a connected drive with a real UUID
+        if (!user || needsDriveConnection || !primaryDriveId) return;
         setLoading(true);
         try {
-            const data = await libraryService.getLibrary();
-            // Note: Currently backend returns primary, but we've built for expansion.
+            const data = await libraryService.getLibrary(primaryDriveId);
             setSubjects(data.subjects || {});
         } catch (error) {
             console.error('Failed to sync library vault:', error);
@@ -51,25 +49,26 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const addSubject = async (name: string) => {
-        await libraryService.createSubject(name);
+        if (!primaryDriveId) return;
+        await libraryService.createSubject(name, primaryDriveId);
         await refreshLibrary();
     };
 
     const addTopic = async (subjectName: string, topicName: string) => {
-        await libraryService.createTopic(subjectName, topicName);
+        if (!primaryDriveId) return;
+        await libraryService.createTopic(subjectName, topicName, primaryDriveId);
         await refreshLibrary();
     };
 
     useEffect(() => {
         refreshLibrary();
-    }, [user, needsDriveConnection]);
+    }, [user, needsDriveConnection, primaryDriveId]);
 
     return (
         <LibraryContext.Provider value={{ 
             subjects, 
             loading, 
-            selectedDriveId,
-            setSelectedDriveId,
+            selectedDriveId: primaryDriveId,
             activeTopic, 
             setActiveTopic, 
             refreshLibrary,

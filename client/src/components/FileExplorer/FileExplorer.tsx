@@ -5,17 +5,18 @@ import UploadZone from './UploadZone';
 
 interface FileExplorerProps {
     driveId: string;
+    topicId: string;
     topicName: string;
 }
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ driveId, topicName }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ driveId, topicId, topicName }) => {
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const loadFiles = async () => {
         setLoading(true);
         try {
-            const data = await fileService.listFiles(driveId, topicName);
+            const data = await fileService.listFiles(driveId, topicId);
             setFiles(data.files || []);
         } catch (err) {
             console.error('Failed to load assets:', err);
@@ -26,7 +27,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ driveId, topicName }) => {
 
     useEffect(() => {
         loadFiles();
-    }, [driveId, topicName]);
+    }, [driveId, topicId]);
 
     const handleDelete = async (fileId: string) => {
         if (!confirm('Are you sure you want to move this file to the trash?')) return;
@@ -69,7 +70,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ driveId, topicName }) => {
             </div>
 
             {/* Upload Gateway */}
-            <UploadZone driveId={driveId} topicName={topicName} onUploadComplete={loadFiles} />
+            <UploadZone driveId={driveId} topicId={topicId} onUploadComplete={loadFiles} />
 
             {/* File Management View */}
             <div className="space-y-4">

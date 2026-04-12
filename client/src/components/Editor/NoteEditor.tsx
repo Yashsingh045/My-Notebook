@@ -7,17 +7,19 @@ import AIInsightsPanel from './AIInsightsPanel';
 import NoteChat from './NoteChat';
 import ShareModal from './ShareModal';
 import { noteService } from '../../services/NoteService';
-import { Cloud, CloudOff, Loader2, Sparkles, MessageSquare, Share2 } from 'lucide-react';
+import { Cloud, CloudOff, Loader2, Sparkles, MessageSquare, Share2, FilePlus } from 'lucide-react';
 
 interface NoteEditorProps {
     driveId: string;
-    topicName: string;
-    noteId: string;
+    topicId: string;       // Real Google Drive folder ID for the topic
+    topicName: string;     // Display name
 }
 
-const NoteEditor: React.FC<NoteEditorProps> = ({ driveId, topicName, noteId }) => {
-    const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+const NoteEditor: React.FC<NoteEditorProps> = ({ driveId, topicId, topicName }) => {
+    const [status, setStatus] = useState<'loading' | 'idle' | 'saving' | 'saved' | 'error' | 'empty'>('loading');
     const [activePanel, setActivePanel] = useState<'ai' | 'chat' | 'share' | null>(null);
+    const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
+    const [noteTitle, setNoteTitle] = useState('');
     const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const editor = useEditor({
@@ -29,32 +31,62 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ driveId, topicName, noteId }) =
         ],
         content: '',
         onUpdate: ({ editor }) => {
-            handleAutoSave(editor.getJSON());
+            if (currentNoteId) {
+                handleAutoSave(editor.getJSON());
+            }
         },
     });
 
+    // On mount: list notes in topic, load first one or show empty state
     useEffect(() => {
-        const loadNote = async () => {
-            if (!editor) return;
+        const initEditor = async () => {
+            if (!editor || !driveId || !topicId) return;
+            setStatus('loading');
             try {
-                const note = await noteService.getNote(driveId, noteId);
-                editor.commands.setContent(note.content || '');
-                setStatus('idle');
+                const notes = await noteService.listNotes(driveId, topicId);
+                if (notes && notes.length > 0) {
+                    // Load the most recent note
+                    const firstNote = notes[0];
+                    setCurrentNoteId(firstNote.id);
+                    setNoteTitle(firstNote.title);
+                    const noteContent = await noteService.getNote(driveId, firstNote.id);
+                    editor.commands.setContent(noteContent.content || '');
+                    setStatus('idle');
+                } else {
+                    // No notes yet — show empty state with create prompt
+                    setStatus('empty');
+                }
             } catch (err) {
-                console.error('Failed to load note:', err);
+                console.error('Failed to load notes:', err);
                 setStatus('error');
             }
         };
+        initEditor();
+    }, [editor, driveId, topicId]);
 
-        loadNote();
-    }, [editor, driveId, noteId]);
+    const handleCreateNote = async () => {
+        if (!driveId || !topicId) return;
+        setStatus('loading');
+        try {
+            const title = `${topicName} Notes`;
+            const newNote = await noteService.createNote(driveId, topicId, title);
+            setCurrentNoteId(newNote.id);
+            setNoteTitle(title);
+            editor?.commands.setContent('');
+            setStatus('idle');
+        } catch (err) {
+            console.error('Failed to create note:', err);
+            setStatus('error');
+        }
+    };
 
     const handleAutoSave = (jsonContent: any) => {
+        if (!currentNoteId) return;
         setStatus('saving');
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(async () => {
             try {
-                await noteService.updateNote(driveId, noteId, jsonContent);
+                await noteService.updateNote(driveId, currentNoteId, jsonContent);
                 setStatus('saved');
                 setTimeout(() => setStatus('idle'), 3000);
             } catch (err) {
@@ -62,6 +94,38 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ driveId, topicName, noteId }) =
             }
         }, 2000);
     };
+
+    // Empty state — no notes in this topic yet
+    if (status === 'empty') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-full p-20 text-center animate-fade-in">
+                <div className="w-20 h-20 bg-slate-900 rounded-[2rem] border border-white/5 flex items-center justify-center text-slate-500 mb-8 border-dashed">
+                    <FilePlus size={36} />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3 font-display">No Notes Yet</h2>
+                <p className="text-slate-500 max-w-sm mb-8">
+                    Create your first note for <span className="text-slate-200 font-medium">{topicName}</span> to start researching.
+                </p>
+                <button
+                    onClick={handleCreateNote}
+                    className="btn-premium px-8 py-3 font-bold flex items-center gap-2"
+                >
+                    <FilePlus size={18} />
+                    Create First Note
+                </button>
+            </div>
+        );
+    }
+
+    // Loading state
+    if (status === 'loading') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-full gap-4 text-slate-500">
+                <Loader2 size={32} className="animate-spin text-emerald-500" />
+                <span className="text-sm font-medium">Loading from Drive...</span>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-row h-full w-full overflow-hidden">
@@ -121,26 +185,26 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ driveId, topicName, noteId }) =
             </div>
 
             {/* Slide-over Panels */}
-            {activePanel === 'ai' && (
+            {activePanel === 'ai' && currentNoteId && (
                 <AIInsightsPanel 
                     driveId={driveId} 
-                    noteId={noteId} 
+                    noteId={currentNoteId} 
                     onClose={() => setActivePanel(null)} 
                 />
             )}
 
-            {activePanel === 'chat' && (
+            {activePanel === 'chat' && currentNoteId && (
                 <NoteChat 
                     driveId={driveId} 
-                    noteId={noteId} 
+                    noteId={currentNoteId} 
                     onClose={() => setActivePanel(null)} 
                 />
             )}
 
-            {activePanel === 'share' && (
+            {activePanel === 'share' && currentNoteId && (
                 <ShareModal 
                     driveId={driveId} 
-                    noteId={noteId} 
+                    noteId={currentNoteId} 
                     onClose={() => setActivePanel(null)} 
                 />
             )}

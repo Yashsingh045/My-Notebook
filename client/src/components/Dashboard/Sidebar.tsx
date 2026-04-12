@@ -9,6 +9,9 @@ const Sidebar: React.FC = () => {
     const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]);
     const [showNewSubject, setShowNewSubject] = useState(false);
     const [newSubjectName, setNewSubjectName] = useState('');
+    // Bug fix: track which subject is getting a new topic
+    const [addingTopicTo, setAddingTopicTo] = useState<string | null>(null);
+    const [newTopicName, setNewTopicName] = useState('');
 
     const toggleSubject = (name: string) => {
         setExpandedSubjects(prev => 
@@ -22,6 +25,14 @@ const Sidebar: React.FC = () => {
         await addSubject(newSubjectName);
         setNewSubjectName('');
         setShowNewSubject(false);
+    };
+
+    const handleAddTopic = async (e: React.FormEvent, subjectName: string) => {
+        e.preventDefault();
+        if (!newTopicName.trim()) return;
+        await addTopic(subjectName, newTopicName);
+        setNewTopicName('');
+        setAddingTopicTo(null);
     };
 
     return (
@@ -120,12 +131,27 @@ const Sidebar: React.FC = () => {
                                         <span className="truncate flex-1 text-left">{topicName}</span>
                                     </button>
                                 ))}
-                                <button 
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-slate-600 hover:text-emerald-400 transition-all italic"
-                                >
-                                    <Plus size={12} />
-                                    <span>Add Topic</span>
-                                </button>
+                                {/* Bug fix: Add Topic now triggers inline input */}
+                                {addingTopicTo === name ? (
+                                    <form onSubmit={(e) => handleAddTopic(e, name)} className="px-1">
+                                        <input
+                                            autoFocus
+                                            className="w-full bg-slate-800 border border-emerald-500/30 rounded-lg py-1.5 px-3 text-xs text-white focus:outline-none"
+                                            placeholder="Topic name..."
+                                            value={newTopicName}
+                                            onChange={(e) => setNewTopicName(e.target.value)}
+                                            onBlur={() => !newTopicName && setAddingTopicTo(null)}
+                                        />
+                                    </form>
+                                ) : (
+                                    <button 
+                                        onClick={() => { setAddingTopicTo(name); setNewTopicName(''); }}
+                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-slate-600 hover:text-emerald-400 transition-all italic"
+                                    >
+                                        <Plus size={12} />
+                                        <span>Add Topic</span>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

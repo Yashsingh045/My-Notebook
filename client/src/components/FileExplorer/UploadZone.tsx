@@ -4,11 +4,11 @@ import { fileService } from '../../services/FileService';
 
 interface UploadZoneProps {
     driveId: string;
-    topicName: string;
+    topicId: string;
     onUploadComplete: () => void;
 }
 
-const UploadZone: React.FC<UploadZoneProps> = ({ driveId, topicName, onUploadComplete }) => {
+const UploadZone: React.FC<UploadZoneProps> = ({ driveId, topicId, onUploadComplete }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -24,7 +24,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ driveId, topicName, onUploadCom
         try {
             // We handle the first file for this implementation
             const file = files[0];
-            await fileService.uploadFile(driveId, topicName, file, (p) => setProgress(p));
+            await fileService.uploadFile(driveId, topicId, file, (p) => setProgress(p));
             
             setStatus('success');
             onUploadComplete();
@@ -58,7 +58,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ driveId, topicName, onUploadCom
         if (e.dataTransfer.files) {
             handleUpload(e.dataTransfer.files);
         }
-    }, [driveId, topicName]);
+    }, [driveId, topicId]);
 
     return (
         <div 

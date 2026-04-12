@@ -5,6 +5,7 @@ interface AuthContextType {
     user: any | null;
     loading: boolean;
     needsDriveConnection: boolean;
+    primaryDriveId: string | null;
     login: (credentials: any) => Promise<void>;
     register: (userData: any) => Promise<void>;
     logout: () => void;
@@ -17,6 +18,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
     const [needsDriveConnection, setNeedsDriveConnection] = useState(false);
+    const [primaryDriveId, setPrimaryDriveId] = useState<string | null>(null);
 
     useEffect(() => {
         checkAuth();
@@ -30,14 +32,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         try {
+            // Bug fix: backend now returns needsDriveConnection + primaryDriveId
             const data = await authService.getMe();
             setUser(data.user);
-            // In a real app, the backend /me would include drive state
-            // For now, we manually check or wait for backend result
-            setNeedsDriveConnection(!data.user.hasDrive);
+            setNeedsDriveConnection(data.needsDriveConnection ?? false);
+            setPrimaryDriveId(data.primaryDriveId ?? null);
         } catch (error) {
             localStorage.removeItem('token');
             setUser(null);
+            setPrimaryDriveId(null);
         } finally {
             setLoading(false);
         }
@@ -47,20 +50,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await authService.login(credentials);
         localStorage.setItem('token', data.token);
         setUser(data.user);
-        setNeedsDriveConnection(data.needsDriveConnection);
+        setNeedsDriveConnection(data.needsDriveConnection ?? false);
+        // After login, re-check to get primaryDriveId
+        await checkAuth();
     };
 
     const register = async (userData: any) => {
-        const data = await authService.register(userData);
-        // Step 1: Account created. No token yet as per Two-Step logic (usually)
-        // Or token issued but hasDrive=false.
-        // Blueprint: Register returns message. Login is required after register.
+        await authService.register(userData);
     };
 
     const logout = () => {
         localStorage.removeItem('token');
         setUser(null);
         setNeedsDriveConnection(false);
+        setPrimaryDriveId(null);
     };
 
     return (
@@ -68,6 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user, 
             loading, 
             needsDriveConnection, 
+            primaryDriveId,
             login, 
             register, 
             logout, 

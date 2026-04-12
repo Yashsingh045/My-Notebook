@@ -6,11 +6,12 @@ import api from '../api/axios';
  */
 export class FileService {
     /**
-     * Lists assets stored in a specific topic's 'files/' folder.
+     * Lists assets stored in a specific topic folder.
+     * Bug fix: was GET /files?topicName= — now GET /files/topic/:topicId?driveId=
      */
-    public async listFiles(driveId: string, topicName: string) {
-        const response = await api.get('/files', {
-            params: { driveId, topicName }
+    public async listFiles(driveId: string, topicId: string) {
+        const response = await api.get(`/files/topic/${topicId}`, {
+            params: { driveId }
         });
         return response.data;
     }
@@ -19,17 +20,24 @@ export class FileService {
      * Streams an asset to Google Drive via the backend.
      * Uses FormData to handle the binary payload.
      */
-    public async uploadFile(driveId: string, topicName: string, file: File, onProgress?: (progress: number) => void) {
+    public async uploadFile(
+        driveId: string,
+        topicId: string,
+        file: File,
+        onProgress?: (progress: number) => void
+    ) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('driveId', driveId);
-        formData.append('topicName', topicName);
+        formData.append('topicId', topicId);
 
         const response = await api.post('/files/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress: (progressEvent) => {
                 if (onProgress && progressEvent.total) {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    const percentCompleted = Math.round(
+                        (progressEvent.loaded * 100) / progressEvent.total
+                    );
                     onProgress(percentCompleted);
                 }
             }
