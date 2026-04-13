@@ -40,4 +40,23 @@ export interface IFileService {
      * Generates a temporary redirect URL for viewing the file.
      */
     getFileUrl(userId: string, driveId: string, fileId: string): Promise<string>;
+
+    /**
+     * Creates a new folder in the specified parent folder
+     */
+    createFolder(
+        userId: string,
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<string>;
+
+    /**
+     * Lists all folders in the specified parent folder
+     */
+    listFolders(
+        userId: string,
+        driveId: string,
+        parentFolderId: string
+    ): Promise<any[]>;
 }

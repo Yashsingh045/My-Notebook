@@ -49,18 +49,28 @@ export class DriveService implements IDriveService {
         });
         const rootFolderId = rootFolder.data.id!;
 
-        // 2. Create "Subjects/" folder
-        await drive.files.create({
-            requestBody: {
-                name: 'Subjects',
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [rootFolderId],
-            },
-            fields: 'id',
-        });
+        // 2. Create sidebar tab folders
+        const folderNames = ['Studies', 'Internships', 'Jobs', 'Archive'];
+        const folderIds: { [key: string]: string } = {};
 
-        // 3. Create _metadata.json
-        const metadataContent = JSON.stringify({ version: 1, subjects: {} });
+        for (const folderName of folderNames) {
+            const folder = await drive.files.create({
+                requestBody: {
+                    name: folderName,
+                    mimeType: 'application/vnd.google-apps.folder',
+                    parents: [rootFolderId],
+                },
+                fields: 'id',
+            });
+            folderIds[folderName] = folder.data.id!;
+        }
+
+        // 3. Create _metadata.json with folder references
+        const metadataContent = JSON.stringify({ 
+            version: 1, 
+            folders: folderIds,
+            createdAt: new Date().toISOString()
+        });
         await drive.files.create({
             requestBody: { name: '_metadata.json', parents: [rootFolderId] },
             media: { mimeType: 'application/json', body: metadataContent },
@@ -125,6 +135,96 @@ export class DriveService implements IDriveService {
             fileId,
             media: { mimeType: 'application/json', body: JSON.stringify(metadata) },
         });
+    }
+
+    /**
+     * Creates a new folder in a specific parent folder
+     */
+    public async createFolder(
+        userId: string,
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<string> {
+        const drive = await this.getDriveClient(userId, driveId);
+
+        const folder = await drive.files.create({
+            requestBody: {
+                name: folderName,
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [parentFolderId],
+            },
+            fields: 'id',
+        });
+
+        return folder.data.id!;
+    }
+
+    /**
+     * Gets a folder ID by name within a parent folder
+     */
+    public async getFolderIdByName(
+        userId: string,
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<string | null> {
+        const drive = await this.getDriveClient(userId, driveId);
+
+        const files = await drive.files.list({
+            q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentFolderId}' in parents`,
+            fields: 'files(id)',
+            spaces: 'drive',
+        });
+
+        return files.data.files?.[0]?.id || null;
+    }
+
+    /**
+     * Uploads a file to Google Drive
+     */
+    public async uploadFile(
+        userId: string,
+        driveId: string,
+        fileName: string,
+        fileContent: Buffer,
+        mimeType: string,
+        parentFolderId: string
+    ): Promise<string> {
+        const drive = await this.getDriveClient(userId, driveId);
+
+        const file = await drive.files.create({
+            requestBody: {
+                name: fileName,
+                parents: [parentFolderId],
+            },
+            media: {
+                mimeType,
+                body: fileContent,
+            },
+            fields: 'id',
+        });
+
+        return file.data.id!;
+    }
+
+    /**
+     * Lists folders in a parent folder
+     */
+    public async listFolders(
+        userId: string,
+        driveId: string,
+        parentFolderId: string
+    ): Promise<any[]> {
+        const drive = await this.getDriveClient(userId, driveId);
+
+        const files = await drive.files.list({
+            q: `mimeType = 'application/vnd.google-apps.folder' and '${parentFolderId}' in parents`,
+            fields: 'files(id, name, createdTime, modifiedTime)',
+            spaces: 'drive',
+        });
+
+        return files.data.files || [];
     }
 }
 

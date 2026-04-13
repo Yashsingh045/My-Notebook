@@ -101,4 +101,27 @@ export class FileService implements IFileService {
         const file = await drive.files.get({ fileId, fields: 'webViewLink' });
         return file.data.webViewLink || '';
     }
+
+    /**
+     * Creates a new folder in the specified parent folder
+     */
+    public async createFolder(
+        userId: string,
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<string> {
+        return await this.driveService.createFolder(userId, driveId, folderName, parentFolderId);
+    }
+
+    /**
+     * Lists all folders in the specified parent folder
+     */
+    public async listFolders(
+        userId: string,
+        driveId: string,
+        parentFolderId: string
+    ): Promise<any[]> {
+        return await this.driveService.listFolders(userId, driveId, parentFolderId);
+    }
 }

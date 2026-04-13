@@ -25,6 +25,14 @@ const fileController = new FileController(fileService);
 // Streams a file directly to the topic's /files folder in Drive
 router.post('/upload', protect, upload.single('file'), fileController.uploadFile);
 
+// POST /api/files/folders/:driveId
+// Create a new folder in a parent folder
+router.post('/folders/:driveId', protect, fileController.createFolder);
+
+// GET /api/files/folders/:driveId
+// List folders in root
+router.get('/folders/:driveId', protect, fileController.listFolders);
+
 // GET /api/files/topic/:topicId
 // List all assets for a specific topic
 router.get('/topic/:topicId', protect, fileController.listByTopic);

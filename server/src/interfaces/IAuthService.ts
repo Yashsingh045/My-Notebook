@@ -25,7 +25,8 @@ export interface AuthResult {
 export interface IAuthService {
     register(data: RegisterDTO): Promise<IUser>;
     login(data: LoginDTO): Promise<AuthResult>;
-    getOAuthUrl(): string;
-    exchangeCodeForTokens(code: string): Promise<any>;
+    getOAuthUrl(redirectType?: 'callback' | 'signup'): string;
+    exchangeCodeForTokens(code: string, redirectUri: string): Promise<any>;
     handleOAuthCallback(userId: string, code: string): Promise<AuthResult>;
+    handleOAuthSignup(code: string, signupToken: string): Promise<AuthResult>;
 }

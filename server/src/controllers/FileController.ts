@@ -89,4 +89,71 @@ export class FileController {
             res.status(500).json({ message: (error as Error).message });
         }
     };
+
+    /**
+     * POST /api/files/folders/:driveId
+     * Body: { folderName, parentFolderId (optional - defaults to root) }
+     */
+    public createFolder = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const driveId = req.params.driveId as string;
+            let { folderName, parentFolderId } = req.body;
+
+            if (!folderName) {
+                res.status(400).json({ message: 'Missing folderName.' });
+                return;
+            }
+
+            // If no parentFolderId provided, get the root folder ID from UserDrive
+            if (!parentFolderId) {
+                const userDrive = await require('../config/db').default.userDrive.findUnique({
+                    where: { id: driveId }
+                });
+                if (!userDrive || !userDrive.rootFolderId) {
+                    res.status(400).json({ message: 'Drive not initialized. Connect Google Drive first.' });
+                    return;
+                }
+                parentFolderId = userDrive.rootFolderId;
+            }
+
+            const folderId = await this.fileService.createFolder(
+                userId,
+                driveId,
+                folderName,
+                parentFolderId
+            );
+
+            res.status(201).json({ id: folderId, name: folderName, mimeType: 'application/vnd.google-apps.folder' });
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
+        }
+    };
+
+    /**
+     * GET /api/files/folders/:driveId
+     * Query Params: parentFolderId (required)
+     */
+    public listFolders = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const driveId = req.params.driveId as string;
+            const { parentFolderId } = req.query;
+
+            if (!parentFolderId) {
+                res.status(400).json({ message: 'Missing parentFolderId parameter.' });
+                return;
+            }
+
+            const folders = await this.fileService.listFolders(
+                userId,
+                driveId,
+                parentFolderId as string
+            );
+
+            res.json(folders);
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
+        }
+    };
 }

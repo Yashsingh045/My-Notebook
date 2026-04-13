@@ -72,32 +72,45 @@ export class AuthService implements IAuthService {
 
     /**
      * Generates the Google OAuth consent URL.
+     * @param redirectType - 'callback' for authenticated users, 'signup' for account creation
      */
-    public getOAuthUrl(): string {
+    public getOAuthUrl(redirectType: 'callback' | 'signup' = 'callback'): string {
+        // Determine the frontend redirect path based on the type
+        const redirectPath = redirectType === 'signup' ? '/oauth/signup' : '/oauth/callback';
+        
+        // Get the frontend base URL from env variable
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const fullRedirectUri = `${frontendUrl}${redirectPath}`;
+
+        // Initialize OAuth2Client with the SAME redirect_uri that will be used in generateAuthUrl
         const oAuth2Client = new google.auth.OAuth2(
             this.clientId,
             this.clientSecret,
-            this.redirectUri
+            fullRedirectUri  // Use the full frontend URI, not the env variable
         );
 
         return oAuth2Client.generateAuthUrl({
             access_type: 'offline',
             prompt: 'consent',
+            redirect_uri: fullRedirectUri,
             scope: [
                 'https://www.googleapis.com/auth/drive.file',
                 'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile',
             ],
         });
     }
 
     /**
      * Exchanges auth code for refresh tokens.
+     * @param code - Authorization code from Google
+     * @param redirectUri - The redirect URI that was used when generating the auth URL
      */
-    public async exchangeCodeForTokens(code: string): Promise<any> {
+    public async exchangeCodeForTokens(code: string, redirectUri: string): Promise<any> {
         const oAuth2Client = new google.auth.OAuth2(
             this.clientId,
             this.clientSecret,
-            this.redirectUri
+            redirectUri  // Use the provided redirect URI
         );
         const { tokens } = await oAuth2Client.getToken(code);
         return tokens;
@@ -107,7 +120,10 @@ export class AuthService implements IAuthService {
      * Handles the OAuth callback, initialises Drive, and returns full session.
      */
     public async handleOAuthCallback(userId: string, code: string): Promise<AuthResult> {
-        const tokens = await this.exchangeCodeForTokens(code);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const callbackRedirectUri = `${frontendUrl}/oauth/callback`;
+        
+        const tokens = await this.exchangeCodeForTokens(code, callbackRedirectUri);
         if (!tokens.refresh_token) {
             throw new Error('No refresh token received. User may have already authorized.');
         }
@@ -132,6 +148,95 @@ export class AuthService implements IAuthService {
         return {
             user: loginResult as any,
             token: this.generateToken(userId),
+            needsDriveConnection: false
+        };
+    }
+
+    /**
+     * Handles Google OAuth for account creation (unauthenticated users).
+     * Creates a new user using Google account information and saves name as username.
+     */
+    /**
+     * Handles OAuth signup for account creation.
+     * @param code - Google OAuth authorization code
+     * @param signupToken - JWT token containing email, username, password from signup form
+     * 
+     * This method ensures users can only be created AFTER successful Google OAuth.
+     * No user exists without a Google Drive account.
+     */
+    public async handleOAuthSignup(code: string, signupToken: string): Promise<AuthResult> {
+        // Step 1: Decode and validate the signup token
+        let signupData: any;
+        try {
+            signupData = jwt.verify(signupToken, this.jwtSecret) as any;
+        } catch (error) {
+            throw new Error('Invalid or expired signup token. Please start the signup process again.');
+        }
+
+        const { email: signupEmail, username, password } = signupData;
+
+        // Step 2: Exchange OAuth code for Google tokens
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const signupRedirectUri = `${frontendUrl}/oauth/signup`;
+        
+        const tokens = await this.exchangeCodeForTokens(code, signupRedirectUri);
+        if (!tokens.refresh_token) {
+            throw new Error('No refresh token received. User may have already authorized.');
+        }
+
+        // Step 3: Get user info from Google
+        const oAuth2Client = new google.auth.OAuth2(this.clientId, this.clientSecret);
+        oAuth2Client.setCredentials(tokens);
+        const oauth2 = google.oauth2({ version: 'v2', auth: oAuth2Client });
+        const userInfo = await oauth2.userinfo.get();
+        const googleEmail = userInfo.data.email;
+
+        if (!googleEmail) {
+            throw new Error('Failed to get email from Google.');
+        }
+
+        // Step 4: Verify emails match (user must connect the Google account they used to sign up)
+        if (googleEmail.toLowerCase() !== signupEmail.toLowerCase()) {
+            throw new Error(`Email mismatch. You signed up with ${signupEmail} but authenticated with ${googleEmail}. Please use the same Google account.`);
+        }
+
+        // Step 5: Check if user already exists (shouldn't happen, but safety check)
+        let existingUser = await prisma.user.findUnique({ where: { email: googleEmail } });
+        if (existingUser) {
+            throw new Error('This email is already registered. Please log in instead.');
+        }
+
+        // Step 6: Hash password and create user
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        const user = await prisma.user.create({
+            data: {
+                email: googleEmail,
+                username,
+                passwordHash,
+            },
+        });
+
+        // Step 7: Initialize Google Drive vault structure
+        await this.driveService.initUserDrive(
+            user.id,
+            googleEmail,
+            tokens.refresh_token,
+            true // isPrimary
+        );
+
+        // Step 8: Return authenticated session
+        return {
+            user: {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+                passwordHash: user.passwordHash,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt
+            },
+            token: this.generateToken(user.id),
             needsDriveConnection: false
         };
     }

@@ -30,4 +30,45 @@ export interface IDriveService {
      * Builds an authenticated Google Drive client for a user.
      */
     getDriveClient(userId: string, driveId: string): Promise<drive_v3.Drive>;
+
+    /**
+     * Creates a new folder in a specific parent folder
+     */
+    createFolder(
+        userId: string,
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<string>;
+
+    /**
+     * Gets a folder ID by name within a parent folder
+     */
+    getFolderIdByName(
+        userId: string,
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<string | null>;
+
+    /**
+     * Uploads a file to Google Drive
+     */
+    uploadFile(
+        userId: string,
+        driveId: string,
+        fileName: string,
+        fileContent: Buffer,
+        mimeType: string,
+        parentFolderId: string
+    ): Promise<string>;
+
+    /**
+     * Lists folders in a parent folder
+     */
+    listFolders(
+        userId: string,
+        driveId: string,
+        parentFolderId: string
+    ): Promise<any[]>;
 }
