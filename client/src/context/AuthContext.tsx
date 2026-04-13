@@ -47,12 +47,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const login = async (credentials: any) => {
-        const data = await authService.login(credentials);
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
-        setNeedsDriveConnection(data.needsDriveConnection ?? false);
-        // After login, re-check to get primaryDriveId
-        await checkAuth();
+        setLoading(true);
+        try {
+            const data = await authService.login(credentials);
+            localStorage.setItem('token', data.token);
+            setUser(data.user);
+            setNeedsDriveConnection(data.needsDriveConnection ?? false);
+            // After login, re-check to get primaryDriveId
+            await checkAuth();
+        } finally {
+            setLoading(false);
+        }
     };
 
     const register = async (userData: any) => {

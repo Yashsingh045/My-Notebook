@@ -55,6 +55,27 @@ export class FileService {
         });
         return response.data;
     }
+
+    /**
+     * Creates a new folder in Google Drive
+     */
+    public async createFolder(driveId: string, folderName: string, parentFolderId: string) {
+        const response = await api.post(`/files/folders/${driveId}`, {
+            folderName,
+            parentFolderId
+        });
+        return response.data;
+    }
+
+    /**
+     * Lists all folders in a parent folder
+     */
+    public async listFolders(driveId: string, parentFolderId: string) {
+        const response = await api.get(`/files/folders/${driveId}`, {
+            params: { parentFolderId }
+        });
+        return response.data;
+    }
 }
 
 // Export singleton instance

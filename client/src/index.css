@@ -1,59 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  /* Color Palette - Premium Digital Vault Theme (Emerald & Slate) */
-  --color-slate-950: #020617;
-  --color-emerald-400: #34d399;
-  --color-emerald-500: #10b981;
-  
-  --font-display: "Outfit", sans-serif;
-  --font-sans: "Inter", sans-serif;
-  
-  --animate-fade-in: fadeIn 0.5s ease-out;
-  --animate-slide-up: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  @keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
+/* Basic reset without aggressive overrides */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
 }
 
-:root {
-  --bg-dark: #020617;
-  --bg-card: rgba(15, 23, 42, 0.7);
-  --accent-emerald: #10b981;
-  --accent-glow: rgba(16, 185, 129, 0.15);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  
-  --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --accent-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-}
-
-@layer base {
-  body {
-    @apply bg-slate-950 text-slate-50 antialiased overflow-x-hidden;
-    font-family: 'Inter', sans-serif;
-  }
-  
-  h1, h2, h3, h4, .font-display {
-    font-family: 'Outfit', sans-serif;
-  }
-}
-
-/* Custom Utilities */
-@layer utilities {
-  .glass-card {
-    @apply bg-slate-900/40 backdrop-blur-xl border border-white/10 shadow-2xl;
-  }
-  
-  .btn-premium {
-    @apply relative overflow-hidden bg-emerald-500 text-black px-6 py-2 rounded-xl font-bold transition-all duration-300 hover:bg-emerald-400 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.3)];
-  }
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }

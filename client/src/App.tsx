@@ -1,9 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LibraryProvider } from './context/LibraryContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/Auth/LoginPage';
 import RegisterPage from './pages/Auth/RegisterPage';
+import ConnectGoogleDrivePage from './pages/Auth/ConnectGoogleDrivePage';
+import OAuthCallbackPage from './pages/Auth/OAuthCallbackPage';
+import OAuthSignupPage from './pages/Auth/OAuthSignupPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 
 // ─── Protected Route Component ──────────────────────────────
@@ -14,8 +18,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     
     if (!user) return <Navigate to="/login" />;
     
-    // If authenticated but drive is not connected, force Step 2
-    if (needsDriveConnection) return <Navigate to="/register" />;
+    // If authenticated but drive is not connected, force user to connect first
+    if (needsDriveConnection) return <Navigate to="/connect-drive" />;
 
     return <>{children}</>;
 };
@@ -27,17 +31,18 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/connect-drive" element={<ConnectGoogleDrivePage />} />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/oauth/signup" element={<OAuthSignupPage />} />
 
-      {/* Protected Routes */}
+      {/* Protected Dashboard Route */}
       <Route 
         path="/dashboard" 
         element={
-            <ProtectedRoute>
-                <LibraryProvider>
-                    <DashboardPage />
-                </LibraryProvider>
-            </ProtectedRoute>
-        } 
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
       />
 
       {/* Fallback */}
@@ -50,7 +55,10 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <AppRoutes />
+        <LibraryProvider>
+          <Toaster position="top-right" reverseOrder={false} />
+          <AppRoutes />
+        </LibraryProvider>
       </AuthProvider>
     </Router>
   );
