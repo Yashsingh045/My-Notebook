@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import prisma from '../config/db';
 import { IAuthService } from '../interfaces/IAuthService';
 
@@ -12,24 +13,48 @@ export class AuthController {
 
     /**
      * POST /api/auth/register
+     * Step 1: Validates signup credentials and returns a temp token for OAuth.
+     * Does NOT create user yet - creation happens after OAuth in handleOAuthSignup.
+     * This ensures every user has a Google Drive account.
      */
     public register = async (req: Request, res: Response): Promise<void> => {
         try {
             const { email, username, password } = req.body;
-            const user = await this.authService.register({ email, username, password });
-            
-            res.status(201).json({
-                message: 'Account created. Please connect your Google Drive.',
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    username: user.username
-                }
+
+            // Validate email doesn't already exist
+            const existingUser = await prisma.user.findUnique({ where: { email } });
+            if (existingUser) {
+                res.status(400).json({ message: 'Email already registered.' });
+                return;
+            }
+
+            // Validate password strength
+            if (!password || password.length < 6) {
+                res.status(400).json({ message: 'Password must be at least 6 characters.' });
+                return;
+            }
+
+            // Create a temporary signup token (short-lived, 10 minutes)
+            // This token will be used to complete signup after OAuth
+            const signupData = { email, username, password };
+            const signupToken = jwt.sign(signupData, process.env.JWT_SECRET || 'somesecretkey', { expiresIn: '10m' });
+
+            res.status(200).json({
+                message: 'Signup data validated. Proceed to Google authentication.',
+                signupToken
             });
         } catch (error) {
             res.status(400).json({ message: (error as Error).message });
         }
     };
+
+    /**
+     * Helper method to generate JWT token
+     */
+    private generateToken(userId: string): string {
+        const secret = process.env.JWT_SECRET || 'somesecretkey';
+        return jwt.sign({ userId }, secret, { expiresIn: '7d' });
+    }
 
     /**
      * POST /api/auth/login
@@ -50,7 +75,8 @@ export class AuthController {
      */
     public getOAuthUrl = async (req: Request, res: Response): Promise<void> => {
         try {
-            const url = this.authService.getOAuthUrl();
+            const redirectType = (req.query.type as 'callback' | 'signup') || 'callback';
+            const url = this.authService.getOAuthUrl(redirectType);
             res.json({ url });
         } catch (error) {
             res.status(500).json({ message: 'Failed to generate OAuth URL.' });
@@ -103,6 +129,34 @@ export class AuthController {
             res.json({ user, needsDriveConnection, primaryDriveId });
         } catch (error) {
             res.status(500).json({ message: 'Failed to fetch profile.' });
+        }
+    };
+
+    /**
+     * GET /api/auth/oauth/signup
+     * Handles Google OAuth for account creation (unauthenticated users).
+     * Creates a new user using Google account information and saves name as username.
+     */
+    /**
+     * GET /api/auth/oauth/signup
+     * Handles OAuth signup for account creation.
+     * Query params: code, signupToken (from previous /register call)
+     * Creates user AND initializes Google Drive in one transaction.
+     */
+    public handleOAuthSignup = async (req: Request, res: Response): Promise<void> => {
+        const { code, signupToken } = req.query;
+
+        if (!code || !signupToken) {
+            res.status(400).json({ message: 'Missing auth code or signup token.' });
+            return;
+        }
+
+        try {
+            const result = await this.authService.handleOAuthSignup(code as string, signupToken as string);
+            res.json(result);
+        } catch (error) {
+            console.error('OAuth Signup Error:', error);
+            res.status(500).json({ message: (error as Error).message });
         }
     };
 }
