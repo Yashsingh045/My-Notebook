@@ -1,24 +1,28 @@
 import api from '../api/axios';
+import type { DriveChild } from './LibraryService';
 
 /**
  * FileService (Frontend OOP Implementation)
- * Manages binary assets (PDFs, Images, etc.) stored within the topic hierarchy.
+ * Manages binary assets and folders stored within the Drive vault.
  */
 export class FileService {
-    /**
-     * Lists assets stored in a specific topic folder.
-     * Bug fix: was GET /files?topicName= — now GET /files/topic/:topicId?driveId=
-     */
     public async listFiles(driveId: string, topicId: string) {
-        const response = await api.get(`/files/topic/${topicId}`, {
-            params: { driveId }
+        const response = await api.get(`/files/topic/${topicId}`, { params: { driveId } });
+        return response.data;
+    }
+
+    /**
+     * Lists all direct children (files + folders) of a Drive folder.
+     */
+    public async listChildren(driveId: string, parentFolderId: string): Promise<DriveChild[]> {
+        const response = await api.get(`/files/children/${driveId}`, {
+            params: { parentFolderId },
         });
         return response.data;
     }
 
     /**
-     * Streams an asset to Google Drive via the backend.
-     * Uses FormData to handle the binary payload.
+     * Legacy: upload to a topic's /files subfolder.
      */
     public async uploadFile(
         driveId: string,
@@ -33,50 +37,74 @@ export class FileService {
 
         const response = await api.post('/files/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (progressEvent) => {
-                if (onProgress && progressEvent.total) {
-                    const percentCompleted = Math.round(
-                        (progressEvent.loaded * 100) / progressEvent.total
-                    );
-                    onProgress(percentCompleted);
+            onUploadProgress: (e) => {
+                if (onProgress && e.total) {
+                    onProgress(Math.round((e.loaded * 100) / e.total));
                 }
-            }
+            },
         });
-
         return response.data;
     }
 
     /**
-     * Deletes a specific asset from the vault.
+     * Uploads a file directly into a Drive folder by its ID.
      */
+    public async uploadToFolder(
+        driveId: string,
+        parentFolderId: string,
+        file: File,
+        onProgress?: (progress: number) => void
+    ): Promise<DriveChild> {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('driveId', driveId);
+        formData.append('parentFolderId', parentFolderId);
+
+        const response = await api.post('/files/upload-to-folder', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+                if (onProgress && e.total) {
+                    onProgress(Math.round((e.loaded * 100) / e.total));
+                }
+            },
+        });
+        return response.data;
+    }
+
     public async deleteFile(driveId: string, fileId: string) {
-        const response = await api.delete(`/files/${fileId}`, {
-            params: { driveId }
-        });
+        const response = await api.delete(`/files/${fileId}`, { params: { driveId } });
         return response.data;
     }
 
-    /**
-     * Creates a new folder in Google Drive
-     */
-    public async createFolder(driveId: string, folderName: string, parentFolderId: string) {
+    public async createFolder(
+        driveId: string,
+        folderName: string,
+        parentFolderId: string
+    ): Promise<DriveChild> {
         const response = await api.post(`/files/folders/${driveId}`, {
             folderName,
-            parentFolderId
+            parentFolderId,
+        });
+        return response.data;
+    }
+
+    public async listFolders(driveId: string, parentFolderId: string) {
+        const response = await api.get(`/files/folders/${driveId}`, {
+            params: { parentFolderId },
         });
         return response.data;
     }
 
     /**
-     * Lists all folders in a parent folder
+     * Downloads a file as a Blob, bypassing CORS/auth issues with iframe src.
+     * The browser's blob URL can then be used in <iframe> or <img>.
      */
-    public async listFolders(driveId: string, parentFolderId: string) {
-        const response = await api.get(`/files/folders/${driveId}`, {
-            params: { parentFolderId }
+    public async downloadBlobUrl(driveId: string, fileId: string): Promise<string> {
+        const response = await api.get(`/files/download/${driveId}/${fileId}`, {
+            responseType: 'blob',
         });
-        return response.data;
+        return URL.createObjectURL(response.data);
     }
 }
 
-// Export singleton instance
 export const fileService = new FileService();

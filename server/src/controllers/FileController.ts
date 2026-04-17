@@ -1,19 +1,22 @@
 import { Request, Response } from 'express';
 import { Readable } from 'stream';
 import { IFileService } from '../interfaces/IFileService';
+import { IDriveService } from '../interfaces/IDriveService';
+import prisma from '../config/db';
 
 /**
  * FileController (OOP Implementation)
- * Provides HTTP endpoints for asset uploads and management.
- * Injects IFileService to handle Drive orchestration.
+ * Provides HTTP endpoints for asset uploads and folder management.
  */
 export class FileController {
-    constructor(private fileService: IFileService) {}
+    constructor(
+        private fileService: IFileService,
+        private driveService: IDriveService
+    ) {}
 
     /**
      * POST /api/files/upload
-     * Body: { driveId, topicId }
-     * File: 'file' (multipart)
+     * Legacy route: uploads into topicId's /files subfolder.
      */
     public uploadFile = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -26,12 +29,11 @@ export class FileController {
                 return;
             }
 
-            // Convert Multer Buffer to a Readable Stream for the Drive API
             const fileStream = new Readable();
             fileStream.push(file.buffer);
-            fileStream.push(null); // Signal EOF
+            fileStream.push(null);
 
-            const uploadedFile = await this.fileService.uploadFile(
+            const uploaded = await this.fileService.uploadFile(
                 userId,
                 driveId,
                 topicId,
@@ -39,29 +41,61 @@ export class FileController {
                 file.mimetype,
                 fileStream
             );
-
-            res.status(201).json(uploadedFile);
+            res.status(201).json(uploaded);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
         }
     };
 
     /**
-     * GET /api/files/topic/:topicId
-     * Query Params: driveId (required)
+     * POST /api/files/upload-to-folder
+     * Body (multipart): file, driveId, parentFolderId
+     * Uploads the file directly into the given Drive folder.
+     */
+    public uploadToFolder = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const { driveId, parentFolderId } = req.body;
+            const file = req.file;
+
+            if (!driveId || !parentFolderId || !file) {
+                res.status(400).json({
+                    message: 'Missing driveId, parentFolderId, or file content.',
+                });
+                return;
+            }
+
+            const stream = new Readable();
+            stream.push(file.buffer);
+            stream.push(null);
+
+            const uploaded = await this.driveService.uploadFileStream(
+                userId,
+                driveId,
+                file.originalname,
+                file.mimetype,
+                stream,
+                parentFolderId
+            );
+            res.status(201).json(uploaded);
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
+        }
+    };
+
+    /**
+     * GET /api/files/topic/:topicId?driveId=...
      */
     public listByTopic = async (req: Request, res: Response): Promise<void> => {
         try {
             const userId = (req as any).user.id;
-            const { topicId } = req.params;
+            const topicId = req.params.topicId as string;
             const { driveId } = req.query;
-
             if (!driveId) {
                 res.status(400).json({ message: 'Missing driveId parameter.' });
                 return;
             }
-
-            const files = await this.fileService.listFiles(userId, driveId as string, topicId as string);
+            const files = await this.fileService.listFiles(userId, driveId as string, topicId);
             res.json(files);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -69,21 +103,42 @@ export class FileController {
     };
 
     /**
-     * DELETE /api/files/:id
-     * Query Params: driveId (required)
+     * GET /api/files/children/:driveId?parentFolderId=...
+     * Returns a mixed list of files and folders directly under parentFolderId.
+     */
+    public listChildren = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const driveId = req.params.driveId as string;
+            const { parentFolderId } = req.query;
+            if (!parentFolderId) {
+                res.status(400).json({ message: 'Missing parentFolderId parameter.' });
+                return;
+            }
+            const children = await this.driveService.listFolderChildren(
+                userId,
+                driveId,
+                parentFolderId as string
+            );
+            res.json(children);
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
+        }
+    };
+
+    /**
+     * DELETE /api/files/:id?driveId=...
      */
     public deleteFile = async (req: Request, res: Response): Promise<void> => {
         try {
             const userId = (req as any).user.id;
-            const { id } = req.params;
+            const id = req.params.id as string;
             const { driveId } = req.query;
-
             if (!driveId) {
                 res.status(400).json({ message: 'Missing driveId parameter.' });
                 return;
             }
-
-            await this.fileService.deleteFile(userId, driveId as string, id as string);
+            await this.fileService.deleteFile(userId, driveId as string, id);
             res.json({ message: 'File deleted successfully.' });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -105,53 +160,78 @@ export class FileController {
                 return;
             }
 
-            // If no parentFolderId provided, get the root folder ID from UserDrive
             if (!parentFolderId) {
-                const userDrive = await require('../config/db').default.userDrive.findUnique({
-                    where: { id: driveId }
-                });
+                const userDrive = await prisma.userDrive.findUnique({ where: { id: driveId } });
                 if (!userDrive || !userDrive.rootFolderId) {
-                    res.status(400).json({ message: 'Drive not initialized. Connect Google Drive first.' });
+                    res.status(400).json({
+                        message: 'Drive not initialized. Connect Google Drive first.',
+                    });
                     return;
                 }
                 parentFolderId = userDrive.rootFolderId;
             }
 
-            const folderId = await this.fileService.createFolder(
+            const folderId = await this.driveService.createFolder(
                 userId,
                 driveId,
                 folderName,
                 parentFolderId
             );
-
-            res.status(201).json({ id: folderId, name: folderName, mimeType: 'application/vnd.google-apps.folder' });
+            res.status(201).json({
+                id: folderId,
+                name: folderName,
+                type: 'folder',
+                mimeType: 'application/vnd.google-apps.folder',
+            });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
         }
     };
 
     /**
-     * GET /api/files/folders/:driveId
-     * Query Params: parentFolderId (required)
+     * GET /api/files/folders/:driveId?parentFolderId=...
      */
     public listFolders = async (req: Request, res: Response): Promise<void> => {
         try {
             const userId = (req as any).user.id;
             const driveId = req.params.driveId as string;
             const { parentFolderId } = req.query;
-
             if (!parentFolderId) {
                 res.status(400).json({ message: 'Missing parentFolderId parameter.' });
                 return;
             }
-
-            const folders = await this.fileService.listFolders(
+            const folders = await this.driveService.listFolders(
                 userId,
                 driveId,
                 parentFolderId as string
             );
-
             res.json(folders);
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
+        }
+    };
+
+    /**
+     * GET /api/files/download/:driveId/:fileId
+     * Streams the raw file bytes back to the client.
+     */
+    public downloadFile = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const driveId = req.params.driveId as string;
+            const fileId = req.params.fileId as string;
+            const { stream, mimeType, name, size } = await this.driveService.downloadFile(
+                userId,
+                driveId,
+                fileId
+            );
+            res.setHeader('Content-Type', mimeType);
+            res.setHeader(
+                'Content-Disposition',
+                `inline; filename="${encodeURIComponent(name)}"`
+            );
+            if (size) res.setHeader('Content-Length', size);
+            stream.pipe(res);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
         }

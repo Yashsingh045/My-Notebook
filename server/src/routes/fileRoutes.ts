@@ -7,38 +7,39 @@ import { protect } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// ─── Multer Configuration ────────────────────────────────────
-// Using memory storage for zero-disk streaming.
-// ─────────────────────────────────────────────────────────────
-const upload = multer({ 
+const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+    limits: { fileSize: 100 * 1024 * 1024 },
 });
 
-// ─── Dependency Injection Setup ──────────────────────────────
 const fileService = new FileService(driveService);
-const fileController = new FileController(fileService);
+const fileController = new FileController(fileService, driveService);
 
-// ─── File Management Routes ──────────────────────────────────
-
-// POST /api/files/upload
-// Streams a file directly to the topic's /files folder in Drive
+// Upload into a topic's /files subfolder (legacy path)
 router.post('/upload', protect, upload.single('file'), fileController.uploadFile);
 
-// POST /api/files/folders/:driveId
-// Create a new folder in a parent folder
-router.post('/folders/:driveId', protect, fileController.createFolder);
+// Upload directly into a Drive folder by its ID
+router.post(
+    '/upload-to-folder',
+    protect,
+    upload.single('file'),
+    fileController.uploadToFolder
+);
 
-// GET /api/files/folders/:driveId
-// List folders in root
+// Create/list folders
+router.post('/folders/:driveId', protect, fileController.createFolder);
 router.get('/folders/:driveId', protect, fileController.listFolders);
 
-// GET /api/files/topic/:topicId
-// List all assets for a specific topic
+// List mixed children (files + folders) of any folder
+router.get('/children/:driveId', protect, fileController.listChildren);
+
+// Stream a file back to the client for inline viewing
+router.get('/download/:driveId/:fileId', protect, fileController.downloadFile);
+
+// Topic-scoped listing (legacy)
 router.get('/topic/:topicId', protect, fileController.listByTopic);
 
-// DELETE /api/files/:id
-// Remove an asset from Drive vault
+// Delete
 router.delete('/:id', protect, fileController.deleteFile);
 
 export default router;
