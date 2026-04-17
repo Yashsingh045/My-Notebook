@@ -129,6 +129,37 @@ export class FileController {
     /**
      * DELETE /api/files/:id?driveId=...
      */
+    /**
+     * PUT /api/files/:driveId/:fileId
+     * Body: { content: string, mimeType?: string }
+     * Overwrites the content of an existing Drive file. Intended for text
+     * payloads (TipTap JSON notes, JSON metadata, markdown).
+     */
+    public updateFileContent = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const driveId = req.params.driveId as string;
+            const fileId = req.params.fileId as string;
+            const { content, mimeType } = req.body;
+            if (content === undefined || content === null) {
+                res.status(400).json({ message: 'Missing content field.' });
+                return;
+            }
+            const payload =
+                typeof content === 'string' ? content : JSON.stringify(content);
+            const updated = await this.driveService.updateFileContent(
+                userId,
+                driveId,
+                fileId,
+                mimeType || 'application/json',
+                payload
+            );
+            res.json(updated);
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
+        }
+    };
+
     public deleteFile = async (req: Request, res: Response): Promise<void> => {
         try {
             const userId = (req as any).user.id;

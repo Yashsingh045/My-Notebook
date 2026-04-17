@@ -18,6 +18,7 @@ import {
     Upload,
     Loader2,
     RefreshCw,
+    Folder,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -25,21 +26,29 @@ import { useAuth } from '../../context/AuthContext';
 import FileExplorerNode, { type FileNode } from '../../components/Dashboard/FileExplorerNode';
 import DocumentViewer from '../../components/Dashboard/DocumentViewer';
 import SettingsTab from '../../components/Dashboard/SettingsTab';
+import FolderPickerModal, {
+    type PickerTarget,
+} from '../../components/Dashboard/FolderPickerModal';
+import FileSavePickerModal, {
+    type SaveTarget,
+} from '../../components/Dashboard/FileSavePickerModal';
+import NoteDocEditor, { NOTE_SUFFIX } from '../../components/Editor/NoteDocEditor';
 import {
     libraryService,
     type DriveChild,
-    type TabName,
+    type VaultTab,
 } from '../../services/LibraryService';
 import { fileService } from '../../services/FileService';
 
-const VAULT_TABS: { name: TabName; icon: React.ElementType }[] = [
-    { name: 'Studies', icon: GraduationCap },
-    { name: 'Internships', icon: Briefcase },
-    { name: 'Jobs', icon: Briefcase },
-    { name: 'Archive', icon: Archive },
-];
+const ICON_FOR_TAB: Record<string, React.ElementType> = {
+    Studies: GraduationCap,
+    Internships: Briefcase,
+    Jobs: Briefcase,
+    Archive: Archive,
+};
+const iconForTab = (name: string): React.ElementType => ICON_FOR_TAB[name] || Folder;
 
-type TabKey = 'Dashboard' | TabName | 'Settings';
+type TabKey = 'Dashboard' | 'Settings' | string; // otherwise, a VaultTab.id
 
 type SelectedFile = {
     id: string;
@@ -54,25 +63,29 @@ const DashboardPage: React.FC = () => {
     const { logout, primaryDriveId, needsDriveConnection } = useAuth();
 
     const [activeTab, setActiveTab] = useState<TabKey>('Dashboard');
-    const [tabs, setTabs] = useState<Record<TabName, string> | null>(null);
+    const [tabs, setTabs] = useState<VaultTab[] | null>(null);
+    const [rootFolderId, setRootFolderId] = useState<string | null>(null);
     const [tabsLoading, setTabsLoading] = useState(false);
     const [tabsError, setTabsError] = useState<string | null>(null);
 
-    // Lazy cache: folderId → its direct children
     const [childrenByFolderId, setChildrenByFolderId] = useState<Map<string, DriveChild[]>>(
         new Map()
     );
     const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
-    // The folder currently highlighted as the "target" for New Entry / upload.
-    // When null, the active tab's root folder is the target.
     const [activeFolder, setActiveFolder] = useState<{ id: string; name: string } | null>(
         null
     );
-
     const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+    const [showPicker, setShowPicker] = useState(false);
+
+    type PendingImport = { id: string; file: File; blobUrl: string };
+    const [pendingImports, setPendingImports] = useState<PendingImport[]>([]);
+    const [savingImport, setSavingImport] = useState<PendingImport | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dashboardImportRef = useRef<HTMLInputElement>(null);
 
     // ─── Tab bootstrap ───────────────────────────────────────────
     const loadTabs = useCallback(async () => {
@@ -80,8 +93,9 @@ const DashboardPage: React.FC = () => {
         setTabsLoading(true);
         setTabsError(null);
         try {
-            const folders = await libraryService.getTabs(primaryDriveId);
-            setTabs(folders);
+            const resp = await libraryService.getTabs(primaryDriveId);
+            setTabs(resp.tabs);
+            setRootFolderId(resp.rootFolderId);
         } catch (err: any) {
             setTabsError(err?.response?.data?.message || err.message || 'Failed to load vault');
         } finally {
@@ -92,6 +106,13 @@ const DashboardPage: React.FC = () => {
     useEffect(() => {
         if (primaryDriveId && !needsDriveConnection) loadTabs();
     }, [primaryDriveId, needsDriveConnection, loadTabs]);
+
+    useEffect(() => {
+        return () => {
+            pendingImports.forEach((p) => URL.revokeObjectURL(p.blobUrl));
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ─── Children loader ─────────────────────────────────────────
     const loadChildren = useCallback(
@@ -120,14 +141,18 @@ const DashboardPage: React.FC = () => {
         [primaryDriveId]
     );
 
-    // Load a tab's children when it first becomes active.
+    const activeVaultTab = useMemo(
+        () =>
+            tabs && activeTab !== 'Dashboard' && activeTab !== 'Settings'
+                ? tabs.find((t) => t.id === activeTab) || null
+                : null,
+        [tabs, activeTab]
+    );
+
     useEffect(() => {
-        if (activeTab === 'Dashboard' || activeTab === 'Settings') return;
-        if (!tabs) return;
-        const rootId = tabs[activeTab as TabName];
-        if (!rootId) return;
-        if (!childrenByFolderId.has(rootId)) loadChildren(rootId);
-    }, [activeTab, tabs, childrenByFolderId, loadChildren]);
+        if (!activeVaultTab) return;
+        if (!childrenByFolderId.has(activeVaultTab.id)) loadChildren(activeVaultTab.id);
+    }, [activeVaultTab, childrenByFolderId, loadChildren]);
 
     // ─── Expansion / selection ───────────────────────────────────
     const handleToggleFolder = useCallback(
@@ -143,7 +168,7 @@ const DashboardPage: React.FC = () => {
         [childrenByFolderId, loadChildren]
     );
 
-    const handleSelectFile = useCallback(async (node: FileNode) => {
+    const handleSelectFile = useCallback((node: FileNode) => {
         if (node.type !== 'file') return;
         setSelectedFile({
             id: node.id,
@@ -167,26 +192,21 @@ const DashboardPage: React.FC = () => {
         [childrenByFolderId, loadChildren]
     );
 
-    // ─── Build the tree from the cache ───────────────────────────
-    const currentRootId = useMemo(() => {
-        if (activeTab === 'Dashboard' || activeTab === 'Settings') return null;
-        if (!tabs) return null;
-        return tabs[activeTab as TabName] || null;
-    }, [activeTab, tabs]);
+    // ─── Build tree ──────────────────────────────────────────────
+    const currentRootId = activeVaultTab?.id ?? null;
 
     const buildFileNode = useCallback(
         (child: DriveChild, parentPath: string): FileNode => {
             const path = `${parentPath}/${child.name}`;
             if (child.type === 'folder') {
                 const kids = childrenByFolderId.get(child.id);
-                const mapped: FileNode = {
+                return {
                     id: child.id,
                     name: child.name,
                     type: 'folder',
                     path,
                     children: kids ? kids.map((k) => buildFileNode(k, path)) : [],
                 };
-                return mapped;
             }
             return {
                 id: child.id,
@@ -200,106 +220,179 @@ const DashboardPage: React.FC = () => {
     );
 
     const tree: FileNode[] = useMemo(() => {
-        if (!currentRootId) return [];
+        if (!currentRootId || !activeVaultTab) return [];
         const rootKids = childrenByFolderId.get(currentRootId);
         if (!rootKids) return [];
-        return rootKids.map((c) => buildFileNode(c, `/${activeTab}`));
-    }, [currentRootId, childrenByFolderId, activeTab, buildFileNode]);
+        return rootKids.map((c) => buildFileNode(c, `/${activeVaultTab.name}`));
+    }, [currentRootId, activeVaultTab, childrenByFolderId, buildFileNode]);
 
     // ─── Actions ─────────────────────────────────────────────────
-    const targetFolder = useMemo(() => {
-        if (activeFolder) return activeFolder;
-        if (
-            activeTab !== 'Dashboard' &&
-            activeTab !== 'Settings' &&
-            tabs &&
-            tabs[activeTab as TabName]
-        ) {
-            return { id: tabs[activeTab as TabName], name: activeTab };
-        }
-        return null;
-    }, [activeFolder, activeTab, tabs]);
+    const defaultPickerTarget: PickerTarget | null = activeFolder
+        ? activeFolder
+        : activeVaultTab
+          ? { id: activeVaultTab.id, name: activeVaultTab.name }
+          : null;
 
-    const ensureVaultTabSelected = (): boolean => {
-        if (activeTab === 'Dashboard' || activeTab === 'Settings') {
-            toast('Open Studies, Internships, Jobs, or Archive first.');
-            return false;
-        }
+    const handleOpenPicker = () => {
         if (!tabs) {
             toast.error('Vault still loading…');
-            return false;
+            return;
         }
-        return true;
+        setShowPicker(true);
     };
 
-    const handleCreateFolder = async () => {
-        if (!primaryDriveId) return;
-        if (!ensureVaultTabSelected()) return;
-        const target = targetFolder;
-        if (!target) return;
+    const handleCreateFromPicker = async (parent: PickerTarget, name: string) => {
+        if (!primaryDriveId) throw new Error('No drive connected');
 
-        const folderName = window.prompt(`New folder inside "${target.name}":`);
-        if (!folderName || !folderName.trim()) return;
+        // parent.id === null means root of My-Notebook
+        const created = await fileService.createFolder(
+            primaryDriveId,
+            name,
+            parent.id ?? (rootFolderId as string)
+        );
 
-        const loadingId = toast.loading(`Creating "${folderName.trim()}"…`);
-        try {
-            const created = await fileService.createFolder(
-                primaryDriveId,
-                folderName.trim(),
-                target.id
-            );
-            // Invalidate cache for the target folder
+        if (parent.id === null) {
+            // Root-level: refresh tab list so the new sibling appears
+            await loadTabs();
+            toast.success(`"${created.name}" created at vault root`);
+        } else {
             setChildrenByFolderId((prev) => {
                 const next = new Map(prev);
-                const existing = next.get(target.id) || [];
-                next.set(target.id, [...existing, created]);
+                const existing = next.get(parent.id as string) || [];
+                next.set(parent.id as string, [...existing, created]);
                 return next;
             });
-            setExpandedFolders((prev) => new Set(prev).add(target.id));
-            toast.success(`Folder "${created.name}" created in Drive`, { id: loadingId });
-        } catch (err: any) {
-            toast.error(
-                err?.response?.data?.message || err.message || 'Failed to create folder',
-                { id: loadingId }
-            );
+            setExpandedFolders((prev) => new Set(prev).add(parent.id as string));
+            toast.success(`"${created.name}" created in ${parent.name}`);
         }
     };
 
     const handleFileUploadClick = () => {
-        if (!ensureVaultTabSelected()) return;
+        if (activeTab === 'Dashboard' || activeTab === 'Settings') {
+            toast('Open a vault tab first');
+            return;
+        }
         fileInputRef.current?.click();
+    };
+
+    const handleDashboardImportClick = () => {
+        dashboardImportRef.current?.click();
+    };
+
+    const handleDashboardImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.currentTarget.files;
+        if (!files) return;
+        const additions: PendingImport[] = Array.from(files).map((f) => ({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            file: f,
+            blobUrl: URL.createObjectURL(f),
+        }));
+        setPendingImports((prev) => [...prev, ...additions]);
+        if (dashboardImportRef.current) dashboardImportRef.current.value = '';
+    };
+
+    const removePending = (id: string) => {
+        setPendingImports((prev) => {
+            const target = prev.find((p) => p.id === id);
+            if (target) URL.revokeObjectURL(target.blobUrl);
+            return prev.filter((p) => p.id !== id);
+        });
+    };
+
+    const handleSavePendingToTarget = async (target: SaveTarget) => {
+        if (!primaryDriveId || !savingImport) throw new Error('Missing state');
+        const parentFolderId = target.id ?? (rootFolderId as string);
+        if (!parentFolderId) throw new Error('Drive root not available');
+        const uploaded = await fileService.uploadToFolder(
+            primaryDriveId,
+            parentFolderId,
+            savingImport.file
+        );
+        // Refresh that folder's cache if we've already loaded it
+        setChildrenByFolderId((prev) => {
+            if (!prev.has(parentFolderId)) return prev;
+            const next = new Map(prev);
+            next.set(parentFolderId, [...(next.get(parentFolderId) || []), uploaded]);
+            return next;
+        });
+        // If user saved to root (same level as Studies), refresh sidebar tabs
+        if (target.id === null) await loadTabs();
+        toast.success(`${uploaded.name} saved to ${target.name}`);
+        removePending(savingImport.id);
+        setSavingImport(null);
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.currentTarget.files;
         if (!files || !primaryDriveId) return;
-        const target = targetFolder;
+        const target = activeFolder || activeVaultTab;
         if (!target) return;
+        const targetId = 'id' in target ? target.id : '';
 
-        const uploads = Array.from(files);
-        for (const file of uploads) {
-            const loadingId = toast.loading(`Uploading ${file.name}…`);
+        for (const file of Array.from(files)) {
+            const toastId = toast.loading(`Uploading ${file.name}…`);
             try {
-                const uploaded = await fileService.uploadToFolder(
-                    primaryDriveId,
-                    target.id,
-                    file
-                );
+                const uploaded = await fileService.uploadToFolder(primaryDriveId, targetId, file);
                 setChildrenByFolderId((prev) => {
                     const next = new Map(prev);
-                    const existing = next.get(target.id) || [];
-                    next.set(target.id, [...existing, uploaded]);
+                    const existing = next.get(targetId) || [];
+                    next.set(targetId, [...existing, uploaded]);
                     return next;
                 });
-                toast.success(`${uploaded.name} saved to Drive`, { id: loadingId });
+                toast.success(`${uploaded.name} saved to Drive`, { id: toastId });
             } catch (err: any) {
                 toast.error(
                     err?.response?.data?.message || err.message || `Upload failed: ${file.name}`,
-                    { id: loadingId }
+                    { id: toastId }
                 );
             }
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleCreateNote = async () => {
+        if (!primaryDriveId) return;
+        const target = activeFolder || activeVaultTab;
+        if (!target) {
+            toast('Open a vault tab first');
+            return;
+        }
+        const title = window.prompt('Note title:', 'Untitled note');
+        if (!title || !title.trim()) return;
+        const fileName = `${title.trim()}${NOTE_SUFFIX}`;
+        const targetId = 'id' in target ? target.id : '';
+        const toastId = toast.loading('Creating note…');
+        try {
+            const emptyDoc = {
+                type: 'tiptap-note',
+                version: 1,
+                title: title.trim(),
+                doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+                updatedAt: new Date().toISOString(),
+            };
+            const blob = new File([JSON.stringify(emptyDoc)], fileName, {
+                type: 'application/json',
+            });
+            const created = await fileService.uploadToFolder(primaryDriveId, targetId, blob);
+            setChildrenByFolderId((prev) => {
+                const next = new Map(prev);
+                const existing = next.get(targetId) || [];
+                next.set(targetId, [...existing, created]);
+                return next;
+            });
+            setSelectedFile({
+                id: created.id,
+                name: created.name,
+                mimeType: created.mimeType,
+                path: `/${target.name}/${created.name}`,
+            });
+            toast.success(`Note "${title.trim()}" created`, { id: toastId });
+        } catch (err: any) {
+            toast.error(
+                err?.response?.data?.message || err.message || 'Failed to create note',
+                { id: toastId }
+            );
+        }
     };
 
     const handleRefresh = async () => {
@@ -320,7 +413,7 @@ const DashboardPage: React.FC = () => {
         }
     };
 
-    const activeFolderLabel = activeFolder?.name || (activeTab !== 'Dashboard' && activeTab !== 'Settings' ? activeTab : '');
+    const activeFolderLabel = activeFolder?.name || activeVaultTab?.name || '';
 
     return (
         <div className="flex bg-[#F8F9FA] h-screen w-screen font-sans text-[#1A1A1A] overflow-hidden">
@@ -336,30 +429,43 @@ const DashboardPage: React.FC = () => {
                     </p>
                 </div>
 
-                <nav className="flex-1 space-y-2">
-                    {VAULT_TABS.map((item) => (
-                        <button
-                            key={item.name}
-                            onClick={() => {
-                                setActiveTab(item.name);
-                                setSelectedFile(null);
-                                setActiveFolder(null);
-                            }}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                                activeTab === item.name
-                                    ? 'bg-[#EBF2FF] text-[#00337C] shadow-sm'
-                                    : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                        >
-                            <item.icon
-                                size={18}
-                                className={
-                                    activeTab === item.name ? 'text-[#00337C]' : 'text-gray-400'
-                                }
-                            />
-                            <span className="text-sm font-bold">{item.name}</span>
-                        </button>
-                    ))}
+                <nav className="flex-1 space-y-2 overflow-y-auto">
+                    {tabs?.map((tab) => {
+                        const Icon = iconForTab(tab.name);
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => {
+                                    setActiveTab(tab.id);
+                                    setSelectedFile(null);
+                                    setActiveFolder(null);
+                                }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                                    isActive
+                                        ? 'bg-[#EBF2FF] text-[#00337C] shadow-sm'
+                                        : 'text-gray-500 hover:bg-gray-50'
+                                }`}
+                                title={tab.isStandard ? tab.name : `${tab.name} (custom)`}
+                            >
+                                <Icon
+                                    size={18}
+                                    className={isActive ? 'text-[#00337C]' : 'text-gray-400'}
+                                />
+                                <span className="text-sm font-bold truncate">{tab.name}</span>
+                                {!tab.isStandard && (
+                                    <span className="ml-auto text-[9px] uppercase tracking-widest text-gray-300">
+                                        custom
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                    {tabsLoading && !tabs && (
+                        <div className="flex items-center gap-2 px-4 py-2 text-gray-400 text-xs">
+                            <Loader2 size={14} className="animate-spin" /> Loading vault…
+                        </div>
+                    )}
                     <button
                         onClick={() => {
                             setActiveTab('Settings');
@@ -382,14 +488,10 @@ const DashboardPage: React.FC = () => {
 
                 <div className="pt-4 mt-auto border-t border-gray-100 flex flex-col gap-2">
                     <button
-                        onClick={handleCreateFolder}
+                        onClick={handleOpenPicker}
                         className="w-full flex items-center justify-center gap-2 bg-[#001D4A] text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-900/10 hover:bg-[#002861] transition-all disabled:opacity-50"
-                        disabled={activeTab === 'Dashboard' || activeTab === 'Settings' || !tabs}
-                        title={
-                            activeTab === 'Dashboard' || activeTab === 'Settings'
-                                ? 'Open a vault tab first'
-                                : `Create folder in ${activeFolderLabel || activeTab}`
-                        }
+                        disabled={!tabs}
+                        title="Create a folder anywhere in your vault"
                     >
                         <Plus size={16} /> New Entry
                     </button>
@@ -432,17 +534,28 @@ const DashboardPage: React.FC = () => {
                             <Bell size={20} />
                             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />
                         </button>
-                        <div className="w-10 h-10 bg-[#E8F2FF] rounded-full flex items-center justify-center text-[#00337C] font-bold text-sm overflow-hidden border border-[#EBF2FF] cursor-pointer hover:shadow-md transition-all">
+                        <button
+                            onClick={() => {
+                                setActiveTab('Settings');
+                                setSelectedFile(null);
+                                setActiveFolder(null);
+                            }}
+                            title="Open Settings"
+                            className="w-10 h-10 bg-[#E8F2FF] rounded-full flex items-center justify-center text-[#00337C] font-bold text-sm overflow-hidden border border-[#EBF2FF] cursor-pointer hover:shadow-md transition-all"
+                        >
                             <User size={20} />
-                        </div>
+                        </button>
                     </div>
                 </header>
 
                 {activeTab === 'Dashboard' ? (
                     <DashboardHome
-                        fileInputRef={fileInputRef}
-                        onImportClick={handleFileUploadClick}
-                        onFileUpload={handleFileUpload}
+                        importInputRef={dashboardImportRef}
+                        onImportClick={handleDashboardImportClick}
+                        onImportFiles={handleDashboardImport}
+                        pendingImports={pendingImports}
+                        onRemove={removePending}
+                        onRequestSave={(imp) => setSavingImport(imp)}
                     />
                 ) : activeTab === 'Settings' ? (
                     <div className="flex-1 overflow-y-auto bg-white">
@@ -455,7 +568,7 @@ const DashboardPage: React.FC = () => {
                             <div className="p-6 border-b border-[#F0F0F0] flex items-center justify-between">
                                 <div className="min-w-0">
                                     <h3 className="font-bold text-[#001D4A] uppercase tracking-widest text-xs">
-                                        {activeTab}
+                                        {activeVaultTab?.name}
                                     </h3>
                                     {activeFolder && (
                                         <p className="text-[10px] text-gray-400 mt-1 truncate">
@@ -471,16 +584,23 @@ const DashboardPage: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <button
+                                        onClick={handleCreateNote}
+                                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-all"
+                                        title={`New note in ${activeFolderLabel}`}
+                                    >
+                                        <FileText size={16} />
+                                    </button>
+                                    <button
                                         onClick={handleFileUploadClick}
                                         className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-all"
-                                        title={`Upload into ${activeFolderLabel || activeTab}`}
+                                        title={`Upload into ${activeFolderLabel}`}
                                     >
                                         <Upload size={16} />
                                     </button>
                                     <button
-                                        onClick={handleCreateFolder}
+                                        onClick={handleOpenPicker}
                                         className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-all"
-                                        title={`New folder in ${activeFolderLabel || activeTab}`}
+                                        title="Create folder anywhere"
                                     >
                                         <FolderPlus size={16} />
                                     </button>
@@ -554,10 +674,20 @@ const DashboardPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <DocumentViewer
-                            file={selectedFile}
-                            driveId={primaryDriveId}
-                        />
+                        {selectedFile && selectedFile.name.endsWith(NOTE_SUFFIX) && primaryDriveId ? (
+                            <NoteDocEditor
+                                driveId={primaryDriveId}
+                                file={{ id: selectedFile.id, name: selectedFile.name }}
+                                onClose={() => setSelectedFile(null)}
+                                onSaved={(f) =>
+                                    setSelectedFile((prev) =>
+                                        prev ? { ...prev, id: f.id, name: f.name } : prev
+                                    )
+                                }
+                            />
+                        ) : (
+                            <DocumentViewer file={selectedFile} driveId={primaryDriveId} />
+                        )}
                     </div>
                 )}
             </main>
@@ -610,6 +740,32 @@ const DashboardPage: React.FC = () => {
                     </div>
                 </div>
             </aside>
+
+            {/* File save picker modal (pending dashboard imports) */}
+            <FileSavePickerModal
+                isOpen={savingImport !== null}
+                onClose={() => setSavingImport(null)}
+                onSave={handleSavePendingToTarget}
+                fileName={savingImport?.file.name || ''}
+                rootFolderId={rootFolderId}
+                tabs={tabs ?? []}
+                childrenByFolderId={childrenByFolderId}
+                loadingFolders={loadingFolders}
+                onLoadChildren={loadChildren}
+            />
+
+            {/* Folder picker modal */}
+            <FolderPickerModal
+                isOpen={showPicker}
+                onClose={() => setShowPicker(false)}
+                onCreate={handleCreateFromPicker}
+                rootFolderId={rootFolderId}
+                tabs={tabs ?? []}
+                defaultTarget={defaultPickerTarget}
+                childrenByFolderId={childrenByFolderId}
+                loadingFolders={loadingFolders}
+                onLoadChildren={loadChildren}
+            />
         </div>
     );
 };
@@ -620,11 +776,23 @@ const CenteredMsg: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     </div>
 );
 
+type PendingImport = { id: string; file: File; blobUrl: string };
+
 const DashboardHome: React.FC<{
-    fileInputRef: React.RefObject<HTMLInputElement | null>;
+    importInputRef: React.RefObject<HTMLInputElement | null>;
     onImportClick: () => void;
-    onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ fileInputRef, onImportClick, onFileUpload }) => (
+    onImportFiles: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    pendingImports: PendingImport[];
+    onRemove: (id: string) => void;
+    onRequestSave: (imp: PendingImport) => void;
+}> = ({
+    importInputRef,
+    onImportClick,
+    onImportFiles,
+    pendingImports,
+    onRemove,
+    onRequestSave,
+}) => (
     <div className="flex-1 overflow-y-auto p-12 bg-white">
         <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="space-y-2">
@@ -644,8 +812,8 @@ const DashboardHome: React.FC<{
                     <div className="text-center space-y-2">
                         <h3 className="text-xl font-bold text-[#001D4A]">Import New Intelligence</h3>
                         <p className="text-gray-500 max-w-sm mx-auto">
-                            Open one of the vault tabs (Studies, Internships, Jobs, Archive) to upload
-                            files into your Drive vault.
+                            Pick files here to stage them. Preview first, then save — nothing goes to
+                            Drive until you click <b>Save</b>.
                         </p>
                     </div>
                     <div className="flex gap-3">
@@ -660,13 +828,34 @@ const DashboardHome: React.FC<{
                     </div>
                 </div>
                 <input
-                    ref={fileInputRef}
+                    ref={importInputRef}
                     type="file"
                     multiple
                     className="hidden"
-                    onChange={onFileUpload}
+                    onChange={onImportFiles}
                 />
             </div>
+
+            {pendingImports.length > 0 && (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-bold text-[#001D4A]">Pending imports</h3>
+                        <span className="text-[11px] text-gray-400 uppercase tracking-widest">
+                            Not saved yet
+                        </span>
+                    </div>
+                    <div className="space-y-3">
+                        {pendingImports.map((imp) => (
+                            <PendingImportRow
+                                key={imp.id}
+                                imp={imp}
+                                onRemove={onRemove}
+                                onRequestSave={onRequestSave}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -678,8 +867,8 @@ const DashboardHome: React.FC<{
                         work, Archive for completed items.
                     </TipCard>
                     <TipCard icon={<FileText size={20} />} accent="blue" title="Nested folders">
-                        Inside any tab, create folders per subject, company, or project.
-                        Click a folder once to select it as the target for New Entry.
+                        Click "New Entry" to pick any location — including the root, same level as
+                        Studies — and nest folders however you like.
                     </TipCard>
                     <TipCard
                         icon={<MessageSquare size={20} />}
@@ -694,6 +883,50 @@ const DashboardHome: React.FC<{
         </div>
     </div>
 );
+
+const PendingImportRow: React.FC<{
+    imp: PendingImport;
+    onRemove: (id: string) => void;
+    onRequestSave: (imp: PendingImport) => void;
+}> = ({ imp, onRemove, onRequestSave }) => {
+    const sizeKb = Math.max(1, Math.round(imp.file.size / 1024));
+    return (
+        <div className="bg-white border border-[#E5E5E5] rounded-2xl p-4 flex items-center gap-4 hover:shadow-sm transition">
+            <div className="w-10 h-10 bg-[#E8F2FF] text-[#00337C] rounded-xl flex items-center justify-center">
+                <FileText size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-[#1A1A1A] truncate">{imp.file.name}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                    {imp.file.type || 'unknown type'} · {sizeKb} KB
+                </p>
+            </div>
+            <div className="flex items-center gap-2">
+                <a
+                    href={imp.blobUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-[#E5E5E5] text-gray-600 hover:bg-gray-50 transition"
+                >
+                    Open preview
+                </a>
+                <button
+                    onClick={() => onRequestSave(imp)}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#001D4A] text-white hover:bg-[#002861] transition"
+                >
+                    Save
+                </button>
+                <button
+                    onClick={() => onRemove(imp.id)}
+                    className="px-2 py-1.5 text-xs font-bold rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+                    title="Discard (not saved)"
+                >
+                    Discard
+                </button>
+            </div>
+        </div>
+    );
+};
 
 const TipCard: React.FC<{
     icon: React.ReactNode;

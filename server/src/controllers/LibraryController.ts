@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { ILibraryService } from '../interfaces/ILibraryService';
 import { IDriveService } from '../interfaces/IDriveService';
+import prisma from '../config/db';
+import { TAB_NAMES } from '../services/DriveService';
 
 /**
  * LibraryController (OOP Implementation)
@@ -34,8 +36,9 @@ export class LibraryController {
 
     /**
      * GET /api/library/tabs?driveId=...
-     * Returns { Studies: folderId, Internships: folderId, Jobs: folderId, Archive: folderId }.
-     * Self-heals the vault: creates missing tabs and seeds readme.pdf if missing.
+     * Self-heals the 4 standard tab folders + readmes, then returns the
+     * complete list of top-level folders (standard + user-created) so the
+     * sidebar can render every tab dynamically.
      */
     public getTabs = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -45,11 +48,37 @@ export class LibraryController {
                 res.status(400).json({ message: 'Missing driveId parameter.' });
                 return;
             }
-            const folders = await this.driveService.ensureTabsAndReadmes(
+            const driveIdStr = driveId as string;
+
+            const standardFolders = await this.driveService.ensureTabsAndReadmes(
                 userId,
-                driveId as string
+                driveIdStr
             );
-            res.json({ folders });
+            const userDrive = await prisma.userDrive.findUnique({ where: { id: driveIdStr } });
+            if (!userDrive?.rootFolderId) {
+                res.status(400).json({ message: 'Drive not initialized.' });
+                return;
+            }
+
+            const children = await this.driveService.listFolderChildren(
+                userId,
+                driveIdStr,
+                userDrive.rootFolderId
+            );
+            const standardSet = new Set<string>(TAB_NAMES as readonly string[]);
+            const tabs = children
+                .filter((c) => c.type === 'folder')
+                .map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    isStandard: standardSet.has(c.name),
+                }));
+
+            res.json({
+                rootFolderId: userDrive.rootFolderId,
+                folders: standardFolders,
+                tabs,
+            });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
         }

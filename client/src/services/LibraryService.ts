@@ -12,6 +12,18 @@ export interface DriveChild {
     modifiedTime?: string;
 }
 
+export interface VaultTab {
+    id: string;
+    name: string;
+    isStandard: boolean;
+}
+
+export interface VaultTabsResponse {
+    rootFolderId: string;
+    folders: Record<TabName, string>;
+    tabs: VaultTab[];
+}
+
 /**
  * LibraryService (Frontend OOP Implementation)
  * Abstracts the hierarchical organization API logic.
@@ -26,12 +38,12 @@ export class LibraryService {
     }
 
     /**
-     * Returns the top-level tab folder IDs for the vault,
-     * ensuring tabs + readme.pdf exist.
+     * Returns the vault's root folder id, the standard tab map, and the full
+     * list of top-level folders (standard + user-created). Self-heals.
      */
-    public async getTabs(driveId: string): Promise<Record<TabName, string>> {
+    public async getTabs(driveId: string): Promise<VaultTabsResponse> {
         const response = await api.get('/library/tabs', { params: { driveId } });
-        return response.data.folders as Record<TabName, string>;
+        return response.data as VaultTabsResponse;
     }
 
     public async createSubject(name: string, driveId: string) {

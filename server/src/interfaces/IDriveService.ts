@@ -76,6 +76,14 @@ export interface IDriveService {
 
     deleteFile(userId: string, driveId: string, fileId: string): Promise<void>;
 
+    updateFileContent(
+        userId: string,
+        driveId: string,
+        fileId: string,
+        mimeType: string,
+        body: Buffer | string
+    ): Promise<DriveChild>;
+
     downloadFile(
         userId: string,
         driveId: string,

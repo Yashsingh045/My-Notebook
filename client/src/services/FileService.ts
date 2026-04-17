@@ -105,6 +105,34 @@ export class FileService {
         });
         return URL.createObjectURL(response.data);
     }
+
+    /**
+     * Downloads a file as UTF-8 text. Useful for reading JSON notes or
+     * markdown files from Drive.
+     */
+    public async downloadText(driveId: string, fileId: string): Promise<string> {
+        const response = await api.get(`/files/download/${driveId}/${fileId}`, {
+            responseType: 'text',
+            transformResponse: [(data) => data],
+        });
+        return response.data as string;
+    }
+
+    /**
+     * Overwrites the content of an existing Drive file.
+     */
+    public async updateFileContent(
+        driveId: string,
+        fileId: string,
+        content: string,
+        mimeType = 'application/json'
+    ): Promise<DriveChild> {
+        const response = await api.put(`/files/${driveId}/${fileId}`, {
+            content,
+            mimeType,
+        });
+        return response.data;
+    }
 }
 
 export const fileService = new FileService();

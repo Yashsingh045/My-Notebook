@@ -235,6 +235,24 @@ export class DriveService implements IDriveService {
         await drive.files.delete({ fileId });
     }
 
+    public async updateFileContent(
+        userId: string,
+        driveId: string,
+        fileId: string,
+        mimeType: string,
+        body: Buffer | string
+    ): Promise<DriveChild> {
+        const drive = await this.getDriveClient(userId, driveId);
+        const bodyStream =
+            typeof body === 'string' ? Readable.from(body) : Readable.from(body);
+        const response = await drive.files.update({
+            fileId,
+            media: { mimeType, body: bodyStream },
+            fields: 'id, name, mimeType, size, webViewLink, modifiedTime',
+        });
+        return this.mapFileResource(response.data);
+    }
+
     public async downloadFile(
         userId: string,
         driveId: string,

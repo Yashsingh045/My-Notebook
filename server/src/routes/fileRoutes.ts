@@ -39,6 +39,9 @@ router.get('/download/:driveId/:fileId', protect, fileController.downloadFile);
 // Topic-scoped listing (legacy)
 router.get('/topic/:topicId', protect, fileController.listByTopic);
 
+// Update file content (e.g. TipTap note JSON)
+router.put('/:driveId/:fileId', protect, fileController.updateFileContent);
+
 // Delete
 router.delete('/:id', protect, fileController.deleteFile);
 
