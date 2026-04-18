@@ -8,6 +8,7 @@ import {
     GraduationCap,
     Briefcase,
     Archive,
+    Home,
     Plus,
     LayoutGrid,
     FileText,
@@ -33,6 +34,10 @@ import FileSavePickerModal, {
     type SaveTarget,
 } from '../../components/Dashboard/FileSavePickerModal';
 import NoteDocEditor, { NOTE_SUFFIX } from '../../components/Editor/NoteDocEditor';
+import SearchDropdown from '../../components/Dashboard/SearchDropdown';
+import NotificationPanel from '../../components/Dashboard/NotificationPanel';
+import AIPanel from '../../components/Dashboard/AIPanel';
+import NewNoteModal from '../../components/Dashboard/NewNoteModal';
 import {
     libraryService,
     type DriveChild,
@@ -83,6 +88,7 @@ const DashboardPage: React.FC = () => {
     type PendingImport = { id: string; file: File; blobUrl: string };
     const [pendingImports, setPendingImports] = useState<PendingImport[]>([]);
     const [savingImport, setSavingImport] = useState<PendingImport | null>(null);
+    const [showNewNoteModal, setShowNewNoteModal] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dashboardImportRef = useRef<HTMLInputElement>(null);
@@ -350,49 +356,45 @@ const DashboardPage: React.FC = () => {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleCreateNote = async () => {
-        if (!primaryDriveId) return;
+    const handleOpenNewNote = () => {
         const target = activeFolder || activeVaultTab;
         if (!target) {
             toast('Open a vault tab first');
             return;
         }
-        const title = window.prompt('Note title:', 'Untitled note');
-        if (!title || !title.trim()) return;
-        const fileName = `${title.trim()}${NOTE_SUFFIX}`;
+        setShowNewNoteModal(true);
+    };
+
+    const handleCreateNote = async (title: string) => {
+        if (!primaryDriveId) return;
+        const target = activeFolder || activeVaultTab;
+        if (!target) throw new Error('No folder selected');
+        const fileName = `${title}${NOTE_SUFFIX}`;
         const targetId = 'id' in target ? target.id : '';
-        const toastId = toast.loading('Creating note…');
-        try {
-            const emptyDoc = {
-                type: 'tiptap-note',
-                version: 1,
-                title: title.trim(),
-                doc: { type: 'doc', content: [{ type: 'paragraph' }] },
-                updatedAt: new Date().toISOString(),
-            };
-            const blob = new File([JSON.stringify(emptyDoc)], fileName, {
-                type: 'application/json',
-            });
-            const created = await fileService.uploadToFolder(primaryDriveId, targetId, blob);
-            setChildrenByFolderId((prev) => {
-                const next = new Map(prev);
-                const existing = next.get(targetId) || [];
-                next.set(targetId, [...existing, created]);
-                return next;
-            });
-            setSelectedFile({
-                id: created.id,
-                name: created.name,
-                mimeType: created.mimeType,
-                path: `/${target.name}/${created.name}`,
-            });
-            toast.success(`Note "${title.trim()}" created`, { id: toastId });
-        } catch (err: any) {
-            toast.error(
-                err?.response?.data?.message || err.message || 'Failed to create note',
-                { id: toastId }
-            );
-        }
+        const emptyDoc = {
+            type: 'tiptap-note',
+            version: 1,
+            title,
+            doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+            updatedAt: new Date().toISOString(),
+        };
+        const blob = new File([JSON.stringify(emptyDoc)], fileName, {
+            type: 'application/json',
+        });
+        const created = await fileService.uploadToFolder(primaryDriveId, targetId, blob);
+        setChildrenByFolderId((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(targetId) || [];
+            next.set(targetId, [...existing, created]);
+            return next;
+        });
+        setSelectedFile({
+            id: created.id,
+            name: created.name,
+            mimeType: created.mimeType,
+            path: `/${target.name}/${created.name}`,
+        });
+        toast.success(`Note "${title}" created`);
     };
 
     const handleRefresh = async () => {
@@ -430,6 +432,24 @@ const DashboardPage: React.FC = () => {
                 </div>
 
                 <nav className="flex-1 space-y-2 overflow-y-auto">
+                    <button
+                        onClick={() => {
+                            setActiveTab('Dashboard');
+                            setSelectedFile(null);
+                            setActiveFolder(null);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                            activeTab === 'Dashboard'
+                                ? 'bg-[#EBF2FF] text-[#00337C] shadow-sm'
+                                : 'text-gray-500 hover:bg-gray-50'
+                        }`}
+                    >
+                        <Home
+                            size={18}
+                            className={activeTab === 'Dashboard' ? 'text-[#00337C]' : 'text-gray-400'}
+                        />
+                        <span className="text-sm font-bold">Home</span>
+                    </button>
                     {tabs?.map((tab) => {
                         const Icon = iconForTab(tab.name);
                         const isActive = activeTab === tab.id;
@@ -516,24 +536,36 @@ const DashboardPage: React.FC = () => {
                     </h1>
 
                     <div className="flex-1 max-w-lg mx-12">
-                        <div className="relative">
-                            <Search
-                                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                                size={18}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Search across your library..."
-                                className="w-full bg-[#F3F6F9] border-none rounded-2xl py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-[#00337C]/20 outline-none transition-all"
-                            />
-                        </div>
+                        <SearchDropdown
+                            driveId={primaryDriveId}
+                            onSelectFile={(r) => {
+                                setSelectedFile({
+                                    id: r.id,
+                                    name: r.name,
+                                    mimeType: r.mimeType,
+                                    webViewLink: r.webViewLink,
+                                    path: `/search/${r.name}`,
+                                });
+                            }}
+                            onSelectFolder={(r) => {
+                                // Make sure the folder becomes a navigable target.
+                                // If it's already a known tab, activate it; otherwise
+                                // treat it as a generic selected folder.
+                                const asTab = (tabs || []).find((t) => t.id === r.id);
+                                if (asTab) {
+                                    setActiveTab(asTab.id);
+                                    setActiveFolder(null);
+                                } else {
+                                    setActiveFolder({ id: r.id, name: r.name });
+                                    if (!childrenByFolderId.has(r.id)) loadChildren(r.id);
+                                }
+                                toast.success(`Jumped to folder "${r.name}"`);
+                            }}
+                        />
                     </div>
 
                     <div className="flex items-center gap-6">
-                        <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                            <Bell size={20} />
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />
-                        </button>
+                        <NotificationPanel />
                         <button
                             onClick={() => {
                                 setActiveTab('Settings');
@@ -584,7 +616,7 @@ const DashboardPage: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <button
-                                        onClick={handleCreateNote}
+                                        onClick={handleOpenNewNote}
                                         className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-all"
                                         title={`New note in ${activeFolderLabel}`}
                                     >
@@ -693,53 +725,28 @@ const DashboardPage: React.FC = () => {
             </main>
 
             {/* AI sidebar */}
-            <aside className="w-80 border-l border-[#E5E5E5] bg-white flex flex-col p-8 overflow-hidden">
-                <div className="mb-10">
-                    <h3 className="text-[#7C3AED] font-bold text-lg mb-1">Editorial AI</h3>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        Intelligence Layer
-                    </p>
-                </div>
+            <AIPanel
+                driveId={primaryDriveId}
+                tabs={tabs ?? []}
+                contextFile={
+                    selectedFile
+                        ? {
+                              id: selectedFile.id,
+                              name: selectedFile.name,
+                              mimeType: selectedFile.mimeType,
+                          }
+                        : null
+                }
+            />
 
-                <div className="flex-1 overflow-y-auto space-y-6">
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-[#7C3AED]">
-                            <Sparkles size={14} />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
-                                Insight
-                            </span>
-                        </div>
-                        <div className="bg-white border border-[#E5E5E5] rounded-2xl p-5 shadow-sm">
-                            <p className="text-sm text-gray-600 leading-relaxed">
-                                Select a file from any vault tab to start working with it.
-                            </p>
-                        </div>
-                    </div>
-                </div>
 
-                <div className="pt-6 mt-6 border-t border-gray-50 space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                        {['SUMMARIZE', 'CREATE MCQS', 'ALIGN JOBS'].map((action) => (
-                            <button
-                                key={action}
-                                className="px-3 py-1.5 bg-purple-50 text-[#7C3AED] rounded-md text-[9px] font-bold tracking-widest hover:bg-purple-100 transition-all"
-                            >
-                                {action}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="relative group">
-                        <input
-                            type="text"
-                            placeholder="Ask the curator anything..."
-                            className="w-full bg-[#F3F6F9] border-none rounded-2xl py-4 pl-5 pr-12 text-sm outline-none focus:ring-2 focus:ring-purple-200 transition-all"
-                        />
-                        <button className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-600">
-                            <Plus size={18} />
-                        </button>
-                    </div>
-                </div>
-            </aside>
+            {/* New note modal */}
+            <NewNoteModal
+                isOpen={showNewNoteModal}
+                onClose={() => setShowNewNoteModal(false)}
+                onCreate={handleCreateNote}
+                targetFolderName={activeFolder?.name || activeVaultTab?.name || ''}
+            />
 
             {/* File save picker modal (pending dashboard imports) */}
             <FileSavePickerModal

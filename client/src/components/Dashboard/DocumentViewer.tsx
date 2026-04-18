@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Download, MoreVertical, Loader2 } from 'lucide-react';
+import { Download, Edit3, Loader2, Save, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { fileService } from '../../services/FileService';
 
 interface DocumentViewerProps {
@@ -18,6 +19,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
     const [textContent, setTextContent] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState<string>('');
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -27,6 +31,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
             if (!file || !driveId) {
                 setBlobUrl(null);
                 setTextContent(null);
+                setEditing(false);
                 return;
             }
 
@@ -34,6 +39,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
             setError(null);
             setBlobUrl(null);
             setTextContent(null);
+            setEditing(false);
 
             try {
                 const url = await fileService.downloadBlobUrl(driveId, file.id);
@@ -70,6 +76,49 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
         };
     }, [file, driveId]);
 
+    const isText =
+        (file?.mimeType?.startsWith('text/') ?? false) ||
+        file?.name.endsWith('.md') ||
+        file?.name.endsWith('.json') ||
+        file?.name.endsWith('.txt') ||
+        file?.name.endsWith('.csv');
+
+    // Certain plaintext types aren't editable in the simple textarea flow
+    // (e.g. our TipTap .note.json files open in the rich editor instead).
+    const isEditable =
+        !!isText &&
+        !file?.name.endsWith('.note.json') &&
+        !!driveId;
+
+    const beginEdit = () => {
+        if (!textContent) return;
+        setDraft(textContent);
+        setEditing(true);
+    };
+
+    const cancelEdit = () => {
+        setEditing(false);
+        setDraft('');
+    };
+
+    const commitEdit = async () => {
+        if (!file || !driveId) return;
+        setSaving(true);
+        try {
+            const mime = file.mimeType || 'text/plain';
+            await fileService.updateFileContent(driveId, file.id, draft, mime);
+            setTextContent(draft);
+            setEditing(false);
+            toast.success(`Saved ${file.name}`);
+        } catch (err: any) {
+            toast.error(
+                err?.response?.data?.message || err.message || 'Save failed'
+            );
+        } finally {
+            setSaving(false);
+        }
+    };
+
     if (!file) {
         return (
             <div
@@ -93,10 +142,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
 
     const isPDF = file.mimeType?.includes('pdf') || file.name.toLowerCase().endsWith('.pdf');
     const isImage = file.mimeType?.startsWith('image/');
-    const isText =
-        file.mimeType?.startsWith('text/') ||
-        file.name.endsWith('.md') ||
-        file.name.endsWith('.json');
 
     return (
         <div
@@ -154,7 +199,77 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-                    {blobUrl && (
+                    {isEditable && !editing && (
+                        <button
+                            onClick={beginEdit}
+                            disabled={loading || textContent === null}
+                            style={{
+                                background: 'none',
+                                border: '1px solid #E5E7EB',
+                                borderRadius: '6px',
+                                padding: '6px 12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '12px',
+                                color: '#00337C',
+                                fontWeight: 600,
+                                opacity: loading || textContent === null ? 0.5 : 1,
+                            }}
+                            title="Edit this file"
+                        >
+                            <Edit3 size={14} /> Edit
+                        </button>
+                    )}
+                    {editing && (
+                        <>
+                            <button
+                                onClick={cancelEdit}
+                                disabled={saving}
+                                style={{
+                                    background: 'none',
+                                    border: '1px solid #E5E7EB',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '12px',
+                                    color: '#555',
+                                }}
+                            >
+                                <X size={14} /> Cancel
+                            </button>
+                            <button
+                                onClick={commitEdit}
+                                disabled={saving}
+                                style={{
+                                    background: '#001D4A',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '12px',
+                                    color: 'white',
+                                    fontWeight: 600,
+                                    opacity: saving ? 0.5 : 1,
+                                }}
+                            >
+                                {saving ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                    <Save size={14} />
+                                )}{' '}
+                                Save
+                            </button>
+                        </>
+                    )}
+                    {blobUrl && !editing && (
                         <a
                             href={blobUrl}
                             download={file.name}
@@ -174,19 +289,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
                             <Download size={14} /> Download
                         </a>
                     )}
-                    <button
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '6px 8px',
-                            cursor: 'pointer',
-                            color: '#666',
-                        }}
-                        title="More options"
-                    >
-                        <MoreVertical size={16} />
-                    </button>
                 </div>
             </div>
 
@@ -226,6 +328,26 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ file, driveId }) => {
                     >
                         {error}
                     </div>
+                ) : editing ? (
+                    <textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        disabled={saving}
+                        style={{
+                            flex: 1,
+                            padding: '24px',
+                            margin: 0,
+                            fontSize: '13px',
+                            lineHeight: 1.6,
+                            color: '#1A1A1A',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                            border: 'none',
+                            outline: 'none',
+                            resize: 'none',
+                            background: '#FFFFFF',
+                        }}
+                        autoFocus
+                    />
                 ) : isPDF && blobUrl ? (
                     <iframe
                         src={blobUrl}

@@ -1,314 +1,331 @@
-import React, { useState } from 'react';
-import { LogOut, Plus, Trash2, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+    LogOut,
+    Plus,
+    Trash2,
+    Check,
+    Edit2,
+    Save,
+    X,
+    HardDrive,
+    Loader2,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/AuthService';
+import { driveService, type ConnectedDrive } from '../../services/DriveService';
+
+const BYTES_IN_GB = 1024 ** 3;
+
+const formatBytes = (value: string | number): string => {
+    const n = Number(value || 0);
+    if (!n) return '0 B';
+    if (n >= BYTES_IN_GB) return `${(n / BYTES_IN_GB).toFixed(2)} GB`;
+    if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+    if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${n} B`;
+};
 
 const SettingsTab: React.FC = () => {
-    const { user, logout } = useAuth();
-    const [googleAccounts, setGoogleAccounts] = useState([
-        {
-            id: '1',
-            email: 'yashveer@gmail.com',
-            isPrimary: true,
-            connectedAt: '2026-04-15',
-        },
-    ]);
-    const [loading, setLoading] = useState(false);
+    const { user, logout, refreshUser } = useAuth();
+    const [drives, setDrives] = useState<ConnectedDrive[] | null>(null);
+    const [loadingDrives, setLoadingDrives] = useState(false);
+    const [addingDrive, setAddingDrive] = useState(false);
+    const [removingId, setRemovingId] = useState<string | null>(null);
+    const [editingUsername, setEditingUsername] = useState(false);
+    const [usernameDraft, setUsernameDraft] = useState(user?.username || '');
+    const [savingUsername, setSavingUsername] = useState(false);
 
-    const handleLogout = async () => {
-        if (window.confirm('Are you sure you want to log out?')) {
-            logout();
-            toast.success('Logged out successfully', {
-                duration: 2000,
-                style: {
-                    background: '#333',
-                    color: '#fff',
-                    borderRadius: '10px',
-                },
-            });
+    const loadDrives = async () => {
+        setLoadingDrives(true);
+        try {
+            const data = await driveService.list();
+            setDrives(data);
+        } catch (err: any) {
+            toast.error(
+                err?.response?.data?.message || err.message || 'Failed to load drives'
+            );
+        } finally {
+            setLoadingDrives(false);
         }
     };
 
-    const handleAddGoogleAccount = async () => {
-        setLoading(true);
+    useEffect(() => {
+        loadDrives();
+    }, []);
+
+    useEffect(() => {
+        setUsernameDraft(user?.username || '');
+    }, [user?.username]);
+
+    const handleAddDrive = async () => {
+        setAddingDrive(true);
         try {
-            // This will open Google OAuth flow to add another Google account
             const url = await authService.getOAuthUrl('callback');
             window.location.href = url;
-        } catch (error) {
-            toast.error('Failed to add Google account', {
-                duration: 3000,
-                style: {
-                    background: '#ef4444',
-                    color: '#fff',
-                    borderRadius: '10px',
-                },
-            });
-            setLoading(false);
+        } catch (err: any) {
+            toast.error(
+                err?.response?.data?.message || err.message || 'Failed to start OAuth'
+            );
+            setAddingDrive(false);
         }
     };
 
-    const handleRemoveAccount = (id: string) => {
-        if (googleAccounts.length === 1) {
-            toast.error('You must have at least one Google Drive account connected', {
-                duration: 3000,
-                style: {
-                    background: '#ef4444',
-                    color: '#fff',
-                    borderRadius: '10px',
-                },
-            });
+    const handleRemove = async (drive: ConnectedDrive) => {
+        if (drive.isPrimary) {
+            toast.error('Cannot remove your primary drive.');
             return;
         }
+        if (
+            !window.confirm(
+                `Disconnect ${drive.gmailAccount}? Files already saved in this drive stay there; we just stop using it.`
+            )
+        )
+            return;
+        setRemovingId(drive.id);
+        try {
+            await driveService.disconnect(drive.id);
+            toast.success('Drive disconnected');
+            await loadDrives();
+        } catch (err: any) {
+            toast.error(err?.response?.data?.message || err.message || 'Remove failed');
+        } finally {
+            setRemovingId(null);
+        }
+    };
 
-        setGoogleAccounts(googleAccounts.filter((acc) => acc.id !== id));
-        toast.success('Account removed', {
-            duration: 2000,
-            style: {
-                background: '#333',
-                color: '#fff',
-                borderRadius: '10px',
-            },
-        });
+    const handleSaveUsername = async () => {
+        const value = usernameDraft.trim();
+        if (!value) {
+            toast.error('Username cannot be empty.');
+            return;
+        }
+        if (value === user?.username) {
+            setEditingUsername(false);
+            return;
+        }
+        setSavingUsername(true);
+        try {
+            await authService.updateMe({ username: value });
+            await refreshUser();
+            toast.success('Username updated');
+            setEditingUsername(false);
+        } catch (err: any) {
+            toast.error(
+                err?.response?.data?.message || err.message || 'Failed to update username'
+            );
+        } finally {
+            setSavingUsername(false);
+        }
+    };
+
+    const handleLogout = () => {
+        if (window.confirm('Log out of My-Notebook?')) {
+            logout();
+            toast.success('Logged out');
+        }
     };
 
     return (
-        <div style={{ padding: '40px', backgroundColor: '#FFFFFF', height: '100%', overflowY: 'auto' }}>
-            <h1 style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '8px', color: '#000' }}>
-                Settings
-            </h1>
-            <p style={{ color: '#666', marginBottom: '40px' }}>
-                Manage your account and Google Drive integration
+        <div className="p-10 max-w-3xl mx-auto">
+            <h1 className="text-3xl font-bold text-[#001D4A] mb-1">Settings</h1>
+            <p className="text-gray-500 mb-10">
+                Manage your account and Google Drive integration.
             </p>
 
-            {/* Account Section */}
-            <div
-                style={{
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: '12px',
-                    padding: '24px',
-                    marginBottom: '24px',
-                }}
-            >
-                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px', color: '#000' }}>
-                    Account Information
-                </h2>
-                <div style={{ display: 'grid', gap: '16px' }}>
-                    <div>
-                        <label style={{ fontSize: '12px', color: '#666', fontWeight: '600' }}>
-                            Email
-                        </label>
-                        <p style={{ fontSize: '14px', color: '#000', marginTop: '4px', fontWeight: '500' }}>
-                            {user?.email}
-                        </p>
-                    </div>
-                    <div>
-                        <label style={{ fontSize: '12px', color: '#666', fontWeight: '600' }}>
-                            Username
-                        </label>
-                        <p style={{ fontSize: '14px', color: '#000', marginTop: '4px', fontWeight: '500' }}>
-                            {user?.username}
-                        </p>
-                    </div>
-                    <div>
-                        <label style={{ fontSize: '12px', color: '#666', fontWeight: '600' }}>
-                            Account Created
-                        </label>
-                        <p style={{ fontSize: '14px', color: '#000', marginTop: '4px', fontWeight: '500' }}>
-                            {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
-                        </p>
-                    </div>
-                </div>
-            </div>
+            {/* Account */}
+            <section className="bg-white border border-[#E5E5E5] rounded-2xl p-6 mb-6">
+                <h2 className="text-base font-bold text-[#001D4A] mb-5">Account</h2>
 
-            {/* Google Drive Accounts Section */}
-            <div
-                style={{
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: '12px',
-                    padding: '24px',
-                    marginBottom: '24px',
-                }}
-            >
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '20px',
-                    }}
-                >
-                    <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#000', margin: 0 }}>
-                        Google Drive Accounts
-                    </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field label="Email">{user?.email || '—'}</Field>
+
+                    <Field label="Username">
+                        {editingUsername ? (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    value={usernameDraft}
+                                    onChange={(e) => setUsernameDraft(e.target.value)}
+                                    autoFocus
+                                    className="flex-1 bg-[#F3F6F9] border border-transparent focus:border-[#00337C] focus:bg-white outline-none rounded-lg py-1.5 px-2.5 text-sm"
+                                />
+                                <button
+                                    onClick={handleSaveUsername}
+                                    disabled={savingUsername}
+                                    className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                    title="Save"
+                                >
+                                    {savingUsername ? (
+                                        <Loader2 size={14} className="animate-spin" />
+                                    ) : (
+                                        <Save size={14} />
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingUsername(false);
+                                        setUsernameDraft(user?.username || '');
+                                    }}
+                                    className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
+                                    title="Cancel"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-[#1A1A1A]">
+                                    {user?.username || '—'}
+                                </span>
+                                <button
+                                    onClick={() => setEditingUsername(true)}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-[#00337C] hover:bg-gray-50"
+                                    title="Edit"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </Field>
+
+                    <Field label="Account Created">
+                        {user?.createdAt
+                            ? new Date(user.createdAt).toLocaleDateString()
+                            : 'Unknown'}
+                    </Field>
+                </div>
+            </section>
+
+            {/* Drives */}
+            <section className="bg-white border border-[#E5E5E5] rounded-2xl p-6 mb-6">
+                <div className="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 className="text-base font-bold text-[#001D4A]">
+                            Connected Google Drives
+                        </h2>
+                        <p className="text-[12px] text-gray-500 mt-0.5">
+                            Your primary drive stores everything. Additional drives are used once
+                            the primary is full.
+                        </p>
+                    </div>
                     <button
-                        onClick={handleAddGoogleAccount}
-                        disabled={loading}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '8px 16px',
-                            backgroundColor: '#00337C',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            opacity: loading ? 0.7 : 1,
-                        }}
+                        onClick={handleAddDrive}
+                        disabled={addingDrive}
+                        className="flex items-center gap-2 px-3 py-2 bg-[#001D4A] text-white rounded-lg text-xs font-bold hover:bg-[#002861] disabled:opacity-50 transition"
                     >
-                        <Plus size={16} /> Add Account
+                        {addingDrive ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <Plus size={14} />
+                        )}
+                        Add Drive
                     </button>
                 </div>
 
-                <p
-                    style={{
-                        fontSize: '13px',
-                        color: '#666',
-                        marginBottom: '16px',
-                        lineHeight: '1.5',
-                    }}
-                >
-                    You can connect multiple Google accounts to store your data across different drives. The
-                    primary account is where your archive vault is stored.
-                </p>
+                {loadingDrives && drives === null ? (
+                    <div className="flex items-center gap-2 py-6 text-gray-500 text-sm">
+                        <Loader2 size={14} className="animate-spin" /> Loading drives…
+                    </div>
+                ) : drives && drives.length === 0 ? (
+                    <div className="text-gray-500 text-sm py-6 text-center">
+                        No drives connected yet.
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {(drives || []).map((d) => (
+                            <DriveCard
+                                key={d.id}
+                                drive={d}
+                                onRemove={() => handleRemove(d)}
+                                removing={removingId === d.id}
+                            />
+                        ))}
+                    </div>
+                )}
+            </section>
 
-                <div style={{ display: 'grid', gap: '12px' }}>
-                    {googleAccounts.map((account) => (
-                        <div
-                            key={account.id}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '16px',
-                                backgroundColor: '#F9FAFB',
-                                borderRadius: '8px',
-                                border: '1px solid #E5E7EB',
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                                <div
-                                    style={{
-                                        width: '32px',
-                                        height: '32px',
-                                        backgroundColor: '#E0E7FF',
-                                        borderRadius: '50%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}
-                                >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z" fill="#FBBC05"/>
-                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p
-                                        style={{
-                                            fontSize: '14px',
-                                            fontWeight: '600',
-                                            color: '#000',
-                                            margin: 0,
-                                        }}
-                                    >
-                                        {account.email}
-                                    </p>
-                                    <p
-                                        style={{
-                                            fontSize: '12px',
-                                            color: '#999',
-                                            margin: '2px 0 0 0',
-                                        }}
-                                    >
-                                        Connected on {account.connectedAt}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                {account.isPrimary && (
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '4px 12px',
-                                            backgroundColor: '#D1FAE5',
-                                            borderRadius: '20px',
-                                            fontSize: '12px',
-                                            fontWeight: '600',
-                                            color: '#047857',
-                                        }}
-                                    >
-                                        <Check size={12} /> Primary
-                                    </div>
-                                )}
-                                {!account.isPrimary && (
-                                    <button
-                                        onClick={() => handleRemoveAccount(account.id)}
-                                        style={{
-                                            background: 'none',
-                                            border: '1px solid #FCA5A5',
-                                            borderRadius: '6px',
-                                            padding: '6px 12px',
-                                            cursor: 'pointer',
-                                            color: '#DC2626',
-                                            fontSize: '12px',
-                                            fontWeight: '600',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                        }}
-                                    >
-                                        <Trash2 size={12} /> Remove
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Danger Zone */}
-            <div
-                style={{
-                    backgroundColor: '#FEF2F2',
-                    border: '1px solid #FCA5A5',
-                    borderRadius: '12px',
-                    padding: '24px',
-                }}
-            >
-                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#DC2626' }}>
-                    Danger Zone
-                </h2>
+            {/* Danger zone */}
+            <section className="bg-[#FEF2F2] border border-[#FCA5A5] rounded-2xl p-6">
+                <h2 className="text-base font-bold text-[#DC2626] mb-3">Danger Zone</h2>
                 <button
                     onClick={handleLogout}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '12px 20px',
-                        backgroundColor: '#DC2626',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#DC2626] text-white rounded-lg text-sm font-bold hover:bg-red-700 transition"
                 >
-                    <LogOut size={16} /> Logout
+                    <LogOut size={14} /> Logout
                 </button>
+            </section>
+        </div>
+    );
+};
+
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+    <div>
+        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+            {label}
+        </label>
+        <div className="mt-1.5 text-sm text-[#1A1A1A] font-medium">{children}</div>
+    </div>
+);
+
+const DriveCard: React.FC<{
+    drive: ConnectedDrive;
+    onRemove: () => void;
+    removing: boolean;
+}> = ({ drive, onRemove, removing }) => {
+    const used = Number(drive.spaceUsed || 0);
+    const total = Number(drive.spaceTotal || 0);
+    const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+    const pctColor = pct >= 95 ? '#DC2626' : pct >= 80 ? '#D97706' : '#00337C';
+    const full = total > 0 && used >= total * 0.995;
+
+    return (
+        <div className="border border-[#E5E5E5] rounded-xl p-4 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-lg bg-[#E8F2FF] text-[#00337C] flex items-center justify-center mt-0.5">
+                <HardDrive size={18} />
             </div>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-[#1A1A1A] truncate">
+                        {drive.gmailAccount}
+                    </p>
+                    {drive.isPrimary && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                            <Check size={10} /> Primary
+                        </span>
+                    )}
+                    {full && (
+                        <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                            Full
+                        </span>
+                    )}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                    Connected {new Date(drive.createdAt).toLocaleDateString()}
+                </p>
+                <div className="mt-3 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: pctColor }}
+                    />
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                    {formatBytes(used)} used of {total ? formatBytes(total) : 'unknown'} ({pct}%)
+                </p>
+            </div>
+            {!drive.isPrimary && (
+                <button
+                    onClick={onRemove}
+                    disabled={removing}
+                    className="flex items-center gap-1 px-2.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 disabled:opacity-50"
+                >
+                    {removing ? (
+                        <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                        <Trash2 size={12} />
+                    )}
+                    Remove
+                </button>
+            )}
         </div>
     );
 };

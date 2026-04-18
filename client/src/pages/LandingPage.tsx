@@ -357,7 +357,7 @@ const LandingPage: React.FC = () => {
             <a href="#" className="hover:text-gray-900 transition-colors">Support</a>
             <a href="#" className="hover:text-gray-900 transition-colors">Careers</a>
           </div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest">© 2024 My Notebook Curator System</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest">© 2026 My Notebook Curator System</p>
         </div>
       </footer>
     </div>
