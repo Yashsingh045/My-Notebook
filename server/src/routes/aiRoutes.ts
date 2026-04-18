@@ -10,7 +10,7 @@ const router = Router();
 // ─── Dependency Injection Setup ──────────────────────────────
 const aiService = new AIService();
 const noteService = new NoteService(driveService);
-const aiController = new AIController(aiService, noteService);
+const aiController = new AIController(aiService, noteService, driveService);
 
 // ─── Intelligence Features Routes ───────────────────────────
 
@@ -25,5 +25,8 @@ router.post('/summarize', protect, aiController.summarizeNote);
 // POST /api/ai/chat
 // Interactive chat focusing on specific note context
 router.post('/chat', protect, aiController.chatWithNote);
+
+// POST /api/ai/assist — generic file-aware chat + quick actions
+router.post('/assist', protect, aiController.assist);
 
 export default router;

@@ -1,39 +1,52 @@
 import api from '../api/axios';
 
-/**
- * AIService (Frontend OOP Implementation)
- * Orchestrates intelligence features for notes using OpenAI GPT-4o.
- */
+export type AssistAction = 'chat' | 'summarize' | 'mcqs' | 'explain' | 'align-jobs';
+
+export interface AIMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface AssistRequest {
+    action: AssistAction;
+    message?: string;
+    history?: AIMessage[];
+    context?: { driveId: string; fileId: string };
+}
+
 export class AIService {
-    /**
-     * Generates a set of academic MCQs based on note content.
-     */
     public async generateMCQs(driveId: string, noteId: string) {
         const response = await api.post('/ai/mcqs', { driveId, noteId });
         return response.data;
     }
 
-    /**
-     * Generates a concise academic summary and key points of the note.
-     */
     public async summarizeNote(driveId: string, noteId: string) {
         const response = await api.post('/ai/summarize', { driveId, noteId });
         return response.data;
     }
 
-    /**
-     * Sends a user message to the conversational note chat.
-     */
-    public async chatWithNote(driveId: string, noteId: string, message: string, history: any[]) {
-        const response = await api.post('/ai/chat', { 
-            driveId, 
-            noteId, 
-            message, 
-            history 
+    public async chatWithNote(
+        driveId: string,
+        noteId: string,
+        message: string,
+        history: any[]
+    ) {
+        const response = await api.post('/ai/chat', {
+            driveId,
+            noteId,
+            message,
+            history,
         });
         return response.data;
     }
+
+    /**
+     * Generic file-aware assistant. Returns a markdown string response.
+     */
+    public async assist(req: AssistRequest): Promise<string> {
+        const response = await api.post('/ai/assist', req);
+        return response.data.response as string;
+    }
 }
 
-// Export singleton instance
 export const aiService = new AIService();

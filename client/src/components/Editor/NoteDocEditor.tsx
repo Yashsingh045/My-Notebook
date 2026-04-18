@@ -2,9 +2,19 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Underline as UnderlineExtension } from '@tiptap/extension-underline';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import { Highlight } from '@tiptap/extension-highlight';
+import { Link } from '@tiptap/extension-link';
+import { TextAlign } from '@tiptap/extension-text-align';
+import { TaskList } from '@tiptap/extension-task-list';
+import { TaskItem } from '@tiptap/extension-task-item';
 import {
     Bold,
     Italic,
+    Underline as UnderlineIcon,
+    Strikethrough,
     List,
     ListOrdered,
     Code as CodeIcon,
@@ -18,6 +28,13 @@ import {
     Cloud,
     CloudOff,
     ArrowLeft,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    Link as LinkIcon,
+    Highlighter,
+    CheckSquare,
+    Palette,
 } from 'lucide-react';
 import { fileService } from '../../services/FileService';
 
@@ -72,6 +89,18 @@ const NoteDocEditor: React.FC<NoteDocEditorProps> = ({
         extensions: [
             StarterKit,
             Placeholder.configure({ placeholder: 'Start writing your note…' }),
+            UnderlineExtension,
+            TextStyle,
+            Color,
+            Highlight.configure({ multicolor: true }),
+            Link.configure({
+                openOnClick: false,
+                autolink: true,
+                HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+            }),
+            TextAlign.configure({ types: ['heading', 'paragraph'] }),
+            TaskList,
+            TaskItem.configure({ nested: true }),
         ],
         content: '',
         onUpdate: () => {
@@ -244,34 +273,68 @@ const NoteDocEditor: React.FC<NoteDocEditorProps> = ({
                 .tiptap-note .ProseMirror code { background: #F3F6F9; padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
                 .tiptap-note .ProseMirror pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; }
                 .tiptap-note .ProseMirror blockquote { border-left: 3px solid #00337C; padding-left: 1rem; color: #475569; margin: 1rem 0; }
+                .tiptap-note .ProseMirror a { color: #2563EB; text-decoration: underline; cursor: pointer; }
+                .tiptap-note .ProseMirror mark { border-radius: 2px; padding: 0 2px; }
+                .tiptap-note .ProseMirror ul[data-type="taskList"] { list-style: none; padding-left: 0.25rem; }
+                .tiptap-note .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5rem; }
+                .tiptap-note .ProseMirror ul[data-type="taskList"] li > label { margin-top: 0.35rem; }
+                .tiptap-note .ProseMirror ul[data-type="taskList"] li > div { flex: 1; }
+                .tiptap-note .ProseMirror ul[data-type="taskList"] input[type="checkbox"] { accent-color: #00337C; }
             `}</style>
         </div>
     );
 };
 
+const FONT_COLORS = [
+    '#1A1A1A', '#DC2626', '#D97706', '#059669',
+    '#2563EB', '#7C3AED', '#DB2777', '#6B7280',
+];
+
+const HIGHLIGHT_COLORS = [
+    '#FEF3C7', '#FEE2E2', '#DCFCE7', '#DBEAFE',
+    '#EDE9FE', '#FCE7F3', '#F3F4F6',
+];
+
 const Toolbar: React.FC<{ editor: Editor | null }> = ({ editor }) => {
+    const [colorMenu, setColorMenu] = useState(false);
+    const [highlightMenu, setHighlightMenu] = useState(false);
     if (!editor) return null;
     const btn = (active: boolean) =>
         `p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition ${
             active ? 'bg-[#EBF2FF] text-[#00337C]' : ''
         }`;
+
+    const promptLink = () => {
+        const prev = editor.getAttributes('link').href as string | undefined;
+        const url = window.prompt('URL (empty to remove)', prev || 'https://');
+        if (url === null) return;
+        if (url === '') {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+            return;
+        }
+        editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    };
+
     return (
         <div className="px-6 py-2 border-b border-[#F0F0F0] flex items-center gap-1 flex-wrap">
+            {/* Headings */}
             <button
                 onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
                 className={btn(editor.isActive('heading', { level: 1 }))}
-                title="H1"
+                title="Heading 1"
             >
                 <Heading1 size={16} />
             </button>
             <button
                 onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
                 className={btn(editor.isActive('heading', { level: 2 }))}
-                title="H2"
+                title="Heading 2"
             >
                 <Heading2 size={16} />
             </button>
             <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            {/* Inline marks */}
             <button
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 className={btn(editor.isActive('bold'))}
@@ -286,7 +349,127 @@ const Toolbar: React.FC<{ editor: Editor | null }> = ({ editor }) => {
             >
                 <Italic size={16} />
             </button>
+            <button
+                onClick={() => editor.chain().focus().toggleUnderline().run()}
+                className={btn(editor.isActive('underline'))}
+                title="Underline"
+            >
+                <UnderlineIcon size={16} />
+            </button>
+            <button
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                className={btn(editor.isActive('strike'))}
+                title="Strikethrough"
+            >
+                <Strikethrough size={16} />
+            </button>
+
+            {/* Font color */}
+            <div className="relative">
+                <button
+                    onClick={() => {
+                        setColorMenu((v) => !v);
+                        setHighlightMenu(false);
+                    }}
+                    className={btn(false)}
+                    title="Font color"
+                >
+                    <Palette size={16} />
+                </button>
+                {colorMenu && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-30 grid grid-cols-4 gap-1.5 w-[124px]">
+                        {FONT_COLORS.map((c) => (
+                            <button
+                                key={c}
+                                onClick={() => {
+                                    editor.chain().focus().setColor(c).run();
+                                    setColorMenu(false);
+                                }}
+                                title={c}
+                                className="w-6 h-6 rounded-full border border-gray-200 hover:scale-110 transition"
+                                style={{ backgroundColor: c }}
+                            />
+                        ))}
+                        <button
+                            onClick={() => {
+                                editor.chain().focus().unsetColor().run();
+                                setColorMenu(false);
+                            }}
+                            className="col-span-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest hover:text-[#00337C] mt-1"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Highlight */}
+            <div className="relative">
+                <button
+                    onClick={() => {
+                        setHighlightMenu((v) => !v);
+                        setColorMenu(false);
+                    }}
+                    className={btn(editor.isActive('highlight'))}
+                    title="Highlight"
+                >
+                    <Highlighter size={16} />
+                </button>
+                {highlightMenu && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-2 z-30 grid grid-cols-4 gap-1.5 w-[124px]">
+                        {HIGHLIGHT_COLORS.map((c) => (
+                            <button
+                                key={c}
+                                onClick={() => {
+                                    editor.chain().focus().setHighlight({ color: c }).run();
+                                    setHighlightMenu(false);
+                                }}
+                                title={c}
+                                className="w-6 h-6 rounded-full border border-gray-200 hover:scale-110 transition"
+                                style={{ backgroundColor: c }}
+                            />
+                        ))}
+                        <button
+                            onClick={() => {
+                                editor.chain().focus().unsetHighlight().run();
+                                setHighlightMenu(false);
+                            }}
+                            className="col-span-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest hover:text-[#00337C] mt-1"
+                        >
+                            Remove
+                        </button>
+                    </div>
+                )}
+            </div>
+
             <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            {/* Alignment */}
+            <button
+                onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                className={btn(editor.isActive({ textAlign: 'left' }))}
+                title="Align left"
+            >
+                <AlignLeft size={16} />
+            </button>
+            <button
+                onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                className={btn(editor.isActive({ textAlign: 'center' }))}
+                title="Align center"
+            >
+                <AlignCenter size={16} />
+            </button>
+            <button
+                onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                className={btn(editor.isActive({ textAlign: 'right' }))}
+                title="Align right"
+            >
+                <AlignRight size={16} />
+            </button>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            {/* Lists */}
             <button
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
                 className={btn(editor.isActive('bulletList'))}
@@ -302,6 +485,17 @@ const Toolbar: React.FC<{ editor: Editor | null }> = ({ editor }) => {
                 <ListOrdered size={16} />
             </button>
             <button
+                onClick={() => editor.chain().focus().toggleTaskList().run()}
+                className={btn(editor.isActive('taskList'))}
+                title="Task list"
+            >
+                <CheckSquare size={16} />
+            </button>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            {/* Blocks */}
+            <button
                 onClick={() => editor.chain().focus().toggleBlockquote().run()}
                 className={btn(editor.isActive('blockquote'))}
                 title="Quote"
@@ -315,7 +509,16 @@ const Toolbar: React.FC<{ editor: Editor | null }> = ({ editor }) => {
             >
                 <CodeIcon size={16} />
             </button>
+            <button
+                onClick={promptLink}
+                className={btn(editor.isActive('link'))}
+                title="Link"
+            >
+                <LinkIcon size={16} />
+            </button>
+
             <div className="w-px h-5 bg-gray-200 mx-1" />
+
             <button
                 onClick={() => editor.chain().focus().undo().run()}
                 className={btn(false)}
