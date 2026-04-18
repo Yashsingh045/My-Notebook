@@ -5,6 +5,7 @@ import prisma from '../config/db';
 import { IAuthService, RegisterDTO, LoginDTO, AuthResult } from '../interfaces/IAuthService';
 import { IUser } from '../interfaces/IUser';
 import { IDriveService } from '../interfaces/IDriveService';
+import { activityService } from './ActivityService';
 
 /**
  * AuthService (OOP Implementation)
@@ -135,12 +136,24 @@ export class AuthService implements IAuthService {
         const userInfo = await oauth2.userinfo.get();
         const gmailAccount = userInfo.data.email || 'Primary Drive';
 
+        // First drive = primary; subsequent drives added later are secondary
+        const existingDrives = await prisma.userDrive.count({ where: { userId } });
+        const isPrimary = existingDrives === 0;
+
         // Initialise the standard vault structure in Drive
         await this.driveService.initUserDrive(
             userId,
             gmailAccount,
             tokens.refresh_token,
-            true // isPrimary
+            isPrimary
+        );
+
+        await activityService.log(
+            userId,
+            'add-drive',
+            gmailAccount,
+            null,
+            isPrimary ? 'Connected primary Google Drive' : 'Connected additional Google Drive'
         );
 
         // Return updated auth state

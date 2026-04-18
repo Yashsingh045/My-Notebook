@@ -28,6 +28,9 @@ router.post('/login', authController.login);
 // Fetch current profile
 router.get('/me', protect, authController.getMe);
 
+// PATCH /api/auth/me — update username
+router.patch('/me', protect, authController.updateMe);
+
 // ─── Phase 1 Google OAuth Routes ─────────────────────────────
 
 // GET /api/auth/oauth/url

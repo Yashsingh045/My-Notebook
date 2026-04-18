@@ -43,6 +43,14 @@ export class AuthService {
     }
 
     /**
+     * Updates the authenticated user's editable profile fields.
+     */
+    public async updateMe(data: { username: string }) {
+        const response = await api.patch('/auth/me', data);
+        return response.data;
+    }
+
+    /**
      * Handles OAuth callback for authenticated users.
      * Exchanges the auth code for tokens and initializes Drive.
      */

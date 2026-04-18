@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/db';
 import { IAuthService } from '../interfaces/IAuthService';
+import { activityService } from '../services/ActivityService';
 
 /**
  * AuthController (OOP Implementation)
@@ -129,6 +130,46 @@ export class AuthController {
             res.json({ user, needsDriveConnection, primaryDriveId });
         } catch (error) {
             res.status(500).json({ message: 'Failed to fetch profile.' });
+        }
+    };
+
+    /**
+     * PATCH /api/auth/me
+     * Body: { username }
+     */
+    public updateMe = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = (req as any).user.id;
+            const { username } = req.body;
+            if (typeof username !== 'string' || !username.trim()) {
+                res.status(400).json({ message: 'Username required.' });
+                return;
+            }
+            if (username.trim().length > 60) {
+                res.status(400).json({ message: 'Username too long (max 60).' });
+                return;
+            }
+            const updated = await prisma.user.update({
+                where: { id: userId },
+                data: { username: username.trim() },
+                select: {
+                    id: true,
+                    email: true,
+                    username: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
+            });
+            await activityService.log(
+                userId,
+                'update-username',
+                updated.username,
+                null,
+                'Updated account username'
+            );
+            res.json(updated);
+        } catch (error) {
+            res.status(500).json({ message: (error as Error).message });
         }
     };
 

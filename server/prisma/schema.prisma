@@ -15,14 +15,15 @@ datasource db {
 
 // ─── User: login credentials only ────────────────────────────
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
+  id           String         @id @default(cuid())
+  email        String         @unique
   username     String
   passwordHash String
   drives       UserDrive[]
   sharedLinks  SharedLink[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  activityLogs ActivityLog[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@map("users")
 }
@@ -51,6 +52,23 @@ model UserDrive {
 
   @@unique([userId, gmailAccount])
   @@map("user_drives")
+}
+
+// ─── ActivityLog: user-visible audit trail ───────────────────
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  action     String   // "create-folder" | "upload-file" | "create-note" | "save-note" | "delete-file" | "add-drive" | "update-username"
+  targetName String   // human-readable name of the thing acted on
+  targetId   String?  // Drive file/folder id or UserDrive id
+  details    String?  // optional extra context (free text)
+
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("activity_logs")
 }
 
 // ─── SharedLink: tokenised read-only sharing ──────────────────
