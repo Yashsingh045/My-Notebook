@@ -213,6 +213,66 @@ export class DriveService implements IDriveService {
         return files.data.files || [];
     }
 
+    /**
+     * Searches the user's Drive for files/folders by name and full-text content.
+     * Scoped to the My-Notebook vault root so results never leak unrelated files.
+     */
+    public async searchVault(
+        userId: string,
+        driveId: string,
+        query: string,
+        pageSize = 25
+    ): Promise<DriveChild[]> {
+        const drive = await this.getDriveClient(userId, driveId);
+        const userDrive = await prisma.userDrive.findUnique({ where: { id: driveId } });
+        if (!userDrive?.rootFolderId) return [];
+
+        const escaped = query.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const q = `trashed = false and (name contains '${escaped}' or fullText contains '${escaped}')`;
+
+        const res = await drive.files.list({
+            q,
+            fields: 'files(id, name, mimeType, size, webViewLink, modifiedTime, parents)',
+            orderBy: 'modifiedTime desc',
+            pageSize,
+            spaces: 'drive',
+        });
+
+        // Restrict to descendants of the vault root so we don't surface
+        // files outside My-Notebook.
+        const vaultIds = await this.collectDescendantFolderIds(drive, userDrive.rootFolderId);
+        const allowed = (res.data.files || []).filter((f) =>
+            (f.parents || []).some((p) => vaultIds.has(p))
+        );
+        return allowed
+            .filter((f) => f.name !== '_metadata.json')
+            .map((f) => this.mapFileResource(f));
+    }
+
+    /** BFS traversal of folder IDs reachable from root (for search scoping). */
+    private async collectDescendantFolderIds(
+        drive: drive_v3.Drive,
+        rootId: string
+    ): Promise<Set<string>> {
+        const visited = new Set<string>([rootId]);
+        const queue: string[] = [rootId];
+        while (queue.length) {
+            const parent = queue.shift()!;
+            const kids = await drive.files.list({
+                q: `'${parent}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                fields: 'files(id)',
+                pageSize: 1000,
+            });
+            for (const k of kids.data.files || []) {
+                if (k.id && !visited.has(k.id)) {
+                    visited.add(k.id);
+                    queue.push(k.id);
+                }
+            }
+        }
+        return visited;
+    }
+
     public async listFolderChildren(
         userId: string,
         driveId: string,

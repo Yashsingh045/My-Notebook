@@ -3,6 +3,9 @@ import { Readable } from 'stream';
 import { IFileService } from '../interfaces/IFileService';
 import { IDriveService } from '../interfaces/IDriveService';
 import prisma from '../config/db';
+import { activityService } from '../services/ActivityService';
+
+const NOTE_SUFFIX = '.note.json';
 
 /**
  * FileController (OOP Implementation)
@@ -76,6 +79,13 @@ export class FileController {
                 file.mimetype,
                 stream,
                 parentFolderId
+            );
+            const isNote = uploaded.name.endsWith(NOTE_SUFFIX);
+            await activityService.log(
+                userId,
+                isNote ? 'create-note' : 'upload-file',
+                uploaded.name,
+                uploaded.id
             );
             res.status(201).json(uploaded);
         } catch (error) {
@@ -154,6 +164,9 @@ export class FileController {
                 mimeType || 'application/json',
                 payload
             );
+            if (updated.name.endsWith(NOTE_SUFFIX)) {
+                await activityService.log(userId, 'save-note', updated.name, updated.id);
+            }
             res.json(updated);
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -170,6 +183,7 @@ export class FileController {
                 return;
             }
             await this.fileService.deleteFile(userId, driveId as string, id);
+            await activityService.log(userId, 'delete-file', id, id);
             res.json({ message: 'File deleted successfully.' });
         } catch (error) {
             res.status(500).json({ message: (error as Error).message });
@@ -208,6 +222,7 @@ export class FileController {
                 folderName,
                 parentFolderId
             );
+            await activityService.log(userId, 'create-folder', folderName, folderId);
             res.status(201).json({
                 id: folderId,
                 name: folderName,

@@ -94,4 +94,11 @@ export interface IDriveService {
         userId: string,
         driveId: string
     ): Promise<Record<string, string>>;
+
+    searchVault(
+        userId: string,
+        driveId: string,
+        query: string,
+        pageSize?: number
+    ): Promise<DriveChild[]>;
 }
