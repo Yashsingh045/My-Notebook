@@ -11,6 +11,9 @@ import noteRoutes from './routes/noteRoutes';
 import fileRoutes from './routes/fileRoutes';
 import aiRoutes from './routes/aiRoutes';
 import shareRoutes from './routes/shareRoutes';
+import driveRoutes from './routes/driveRoutes';
+import searchRoutes from './routes/searchRoutes';
+import activityRoutes from './routes/activityRoutes';
 
 dotenv.config();
 
@@ -34,6 +37,9 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/share', shareRoutes);
+app.use('/api/drives', driveRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/activity', activityRoutes);
 
 // Basic Route
 app.get('/', (req: Request, res: Response) => {
