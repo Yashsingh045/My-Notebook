@@ -1,5 +1,5 @@
 import type { drive_v3 } from 'googleapis';
-import { PDFParse } from 'pdf-parse';
+// pdf-parse is imported dynamically inside extractDriveFileText to prevent cold-start crashes on Vercel
 
 const MAX_CHARS = 60_000;
 
@@ -76,6 +76,9 @@ export async function extractDriveFileText(
         const buffer = await readStreamAsBuffer(
             media.data as unknown as NodeJS.ReadableStream
         );
+        
+        // Lazy load pdf-parse only when needed
+        const { PDFParse } = await import('pdf-parse');
         const parser = new PDFParse({ data: new Uint8Array(buffer) });
         try {
             const parsed = await parser.getText();

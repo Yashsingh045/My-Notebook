@@ -17,6 +17,17 @@ import activityRoutes from './routes/activityRoutes';
 
 dotenv.config();
 
+// Mocks for DOM APIs requested by pdf-parse on Node.js 22 (Vercel)
+if (typeof (global as any).DOMMatrix === 'undefined') {
+    (global as any).DOMMatrix = class {};
+}
+if (typeof (global as any).ImageData === 'undefined') {
+    (global as any).ImageData = class {};
+}
+if (typeof (global as any).Path2D === 'undefined') {
+    (global as any).Path2D = class {};
+}
+
 // Connect to Database and Redis (safe for serverless cold-starts)
 const startServices = async () => {
     try {
