@@ -1,37 +1,100 @@
-# My-Notebook: Personal Knowledge Management & Learning Platform
+# My Notebook: The Scholar's Digital Vault
 
-A comprehensive full-stack solution for students and professionals to centralize their learning journey.
+![My Notebook Cover](https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1200)
 
-## Project Structure
+> "Capture, synthesize, and architecturalize your career intelligence."
 
-- `server/`: Node.js + Express + TypeScript + PostgreSQL + Prisma + Redis
-- `client/`: React + Vite + TypeScript 
+My Notebook is a premium, privacy-first digital workspace designed for the modern academic and professional curator. Built on the philosophy of **Zero-Party Data Ownership**, it transforms your Google Drive into a sophisticated intelligence layer, providing a high-end editorial experience without the data-privacy compromises of traditional note-taking apps.
 
-- `styling`:
-Shadcn/UI + Tailwind CSS (layout and core components) + Vanilla CSS("Note Editing" and "Drawing Canvas" areas where we need 100% control.)
+---
 
-## Getting Started
+## ✨ Core Pillars
 
-1. **Install Dependencies**:
-   ```bash
-   npm run install:all
-   ```
+### 🏺 Zero-Party Data Strategy
 
-2. **Setup Environment**:
-   - Copy `server/.env.example` to `server/.env` and fill in the values.
+Unlike traditional SaaS platforms, **My Notebook does not store your content**. All notes, PDF highlights, and career mappings live exclusively in your own Google Drive. We provide the _lens and the tools_, you provide the _vault_.
 
-3. **Database Setup**:
-   - Ensure PostgreSQL and Redis are running.
-   - Run `npx prisma generate` in the `server` directory.
+### 🏛️ Personal Curator Space
 
-4. **Run in Development**:
-   ```bash
-   npm run dev
-   ```
+An elegantly structured 3-column workspace designed to manage your life’s milestones:
 
-## Tech Stack
-- Frontend: React, TypeScript, Vite, React Router, Lucide React
-- Backend: Node.js, Express, TypeScript, Prisma, Redis
-- Database: PostgreSQL
-- AI: OpenAI API
-- Storage: Google Drive API
+- **Studies**: Academic papers, lecture notes, and research syntheses.
+- **Internships**: Project logs, documentation, and skill tracking.
+- **Jobs**: Role descriptions, interview prep, and career strategy.
+- **Archive**: A timeless repository for completed chapters.
+
+### 🧠 Editorial AI (Intelligence Layer)
+
+A sophisticated sidebar assistant that lives alongside your documents:
+
+- **Deep Summarization**: Extract the core essence from long academic papers.
+- **MCQ Generation**: Automatically generate practice questions for exam defense.
+- **Career Alignment**: Analyze how your current notes align with specific job descriptions.
+
+---
+
+## 🛠️ Technological Odyssey
+
+### **The Forge (Backend)**
+
+- **Runtime**: [Node.js](https://nodejs.org/) with [TypeScript](https://www.typescriptlang.org/)
+- **Architecture**: Strict **OOP (Object-Oriented Programming)** with Controller-Service-Interface patterns for maximum scalability.
+- **ORM**: [Prisma](https://www.prisma.io/) (PostgreSQL for metadata/auth, Google Drive for content).
+- **Security**: JWT Auth, Bcrypt encryption, Redis-backed session management.
+- **Integrations**: Google Drive API v3, OpenAI GPT-4o.
+
+### **The Gallery (Frontend)**
+
+- **Framework**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS 4.0](https://tailwindcss.com/) (Custom UI tokens, HSL color palettes).
+- **Editor**: [Tiptap](https://tiptap.dev/) (Rich-text synthesis).
+- **Dynamics**: [Framer Motion](https://www.framer.com/motion/) for fluid, micro-animated transitions.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+
+- Node.js (v18+)
+- PostgreSQL Instance
+- Google Cloud Console Project (with Drive API enabled)
+
+### 2. Backend Setup
+
+```bash
+cd server
+npm install
+cp .env.example .env # Fill in your DB and Google credentials
+npx prisma generate
+npm run dev
+```
+
+### 3. Frontend Setup
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+---
+
+## 🌐 Deployment
+
+### **Backend**
+
+Deployed on **Vercel**:
+
+1. Ensure `DATABASE_URL` points to your production PostgreSQL.
+2. Set up `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the environment.
+3. Use `npm run build` for production transpilation.
+
+### **Frontend**
+
+Deployed on **Vercel**:
+
+1. Point `VITE_API_URL` to your deployed backend.
+2. The UI is pre-optimized for performance via Vite’s build pipeline.
+
+---
