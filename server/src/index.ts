@@ -17,9 +17,17 @@ import activityRoutes from './routes/activityRoutes';
 
 dotenv.config();
 
-// Connect to Database and Redis (wrapped in try-catch for serverless safety)
-try { connectDB(); } catch (e) { console.error('DB connection failed:', e); }
-try { connectRedis(); } catch (e) { console.error('Redis connection failed:', e); }
+// Connect to Database and Redis (safe for serverless cold-starts)
+const startServices = async () => {
+    try {
+        console.log('--- Server Cold Start ---');
+        await connectDB();
+        await connectRedis();
+    } catch (e) {
+        console.error('Service initialization failed:', e);
+    }
+};
+startServices();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -54,5 +62,6 @@ if (!process.env.VERCEL) {
     });
 }
 
-export default app;
+// Export for Vercel serverless handler compatibility
+export = app;
 

@@ -6,14 +6,13 @@ import crypto from 'crypto';
  */
 export class EncryptionService {
     private readonly algorithm = 'aes-256-cbc';
-    private readonly key: Buffer;
     private readonly ivLength = 16;
 
-    constructor() {
-        // Blueprint: ENCRYPTION_KEY must be a 32-char hex string (64 chars total)
+    // Key resolved lazily so that module import never throws at cold-start
+    private get key(): Buffer {
         const secret = process.env.ENCRYPTION_KEY;
-        if (!secret) throw new Error('ENCRYPTION_KEY is missing in env');
-        this.key = Buffer.from(secret, 'hex');
+        if (!secret) throw new Error('ENCRYPTION_KEY environment variable is not set.');
+        return Buffer.from(secret, 'hex');
     }
 
     /**

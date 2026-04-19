@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import redisClient from '../config/redis';
+import { redisGet, redisSetEx } from '../config/redis';
 import { IAIService, MCQ, SummaryResponse, ChatMessage } from '../interfaces/IAIService';
 
 export type AssistAction = 'chat' | 'summarize' | 'mcqs' | 'explain' | 'align-jobs';
@@ -21,14 +21,19 @@ export interface AssistParams {
  * Implements Redis-based caching for cost optimization and performance.
  */
 export class AIService implements IAIService {
-    private openai: OpenAI;
+    private _openai: OpenAI | null = null;
     private readonly cacheExpiry = 60 * 60 * 24; // 24 hours
 
-    constructor() {
-        this.openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-        });
+    private get openai(): OpenAI {
+        if (!this._openai) {
+            const apiKey = process.env.OPENAI_API_KEY;
+            if (!apiKey) throw new Error('OPENAI_API_KEY environment variable is not set. AI features disabled.');
+            this._openai = new OpenAI({ apiKey });
+        }
+        return this._openai;
     }
+
+    constructor() {}
 
     /**
      * Generates 5 MCQs based on note content.
@@ -37,7 +42,7 @@ export class AIService implements IAIService {
         const cacheKey = `ai:mcq:${noteId}`;
 
         // 1. Check Redis Cache
-        const cached = await redisClient.get(cacheKey);
+        const cached = await redisGet(cacheKey);
         if (cached) return JSON.parse(cached);
 
         // 2. Call OpenAI
@@ -57,7 +62,7 @@ export class AIService implements IAIService {
         const mcqs = result.mcqs || [];
 
         // 3. Store in Cache
-        await redisClient.setEx(cacheKey, this.cacheExpiry, JSON.stringify(mcqs));
+        await redisSetEx(cacheKey, this.cacheExpiry, JSON.stringify(mcqs));
 
         return mcqs;
     }
@@ -69,7 +74,7 @@ export class AIService implements IAIService {
         const cacheKey = `ai:summary:${noteId}`;
 
         // 1. Check Redis Cache
-        const cached = await redisClient.get(cacheKey);
+        const cached = await redisGet(cacheKey);
         if (cached) return JSON.parse(cached);
 
         // 2. Call OpenAI
@@ -88,7 +93,7 @@ export class AIService implements IAIService {
         const result = JSON.parse(response.choices[0].message.content || '{"summary": "", "keyPoints": []}');
 
         // 3. Store in Cache
-        await redisClient.setEx(cacheKey, this.cacheExpiry, JSON.stringify(result));
+        await redisSetEx(cacheKey, this.cacheExpiry, JSON.stringify(result));
 
         return result;
     }
