@@ -20,7 +20,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ driveId, topicId, topicName }) 
     const [activePanel, setActivePanel] = useState<'ai' | 'chat' | 'share' | null>(null);
     const [currentNoteId, setCurrentNoteId] = useState<string | null>(null);
     const [noteTitle, setNoteTitle] = useState('');
-    const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const editor = useEditor({
         extensions: [

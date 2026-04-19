@@ -17,9 +17,9 @@ import activityRoutes from './routes/activityRoutes';
 
 dotenv.config();
 
-// Connect to Database and Redis
-connectDB();
-connectRedis();
+// Connect to Database and Redis (wrapped in try-catch for serverless safety)
+try { connectDB(); } catch (e) { console.error('DB connection failed:', e); }
+try { connectRedis(); } catch (e) { console.error('Redis connection failed:', e); }
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -46,6 +46,13 @@ app.get('/', (req: Request, res: Response) => {
     res.send('My-Notebook API is running...');
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+// Only call app.listen() in local development.
+// Vercel uses the exported `app` directly as a serverless handler.
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
+
+export default app;
+
