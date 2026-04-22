@@ -1,20 +1,18 @@
 # My Notebook: The Scholar's Digital Vault
 
-![My Notebook Cover](https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=1200)
-
 > "Capture, synthesize, and architecturalize your career intelligence."
 
 My Notebook is a premium, privacy-first digital workspace designed for the modern academic and professional curator. Built on the philosophy of **Zero-Party Data Ownership**, it transforms your Google Drive into a sophisticated intelligence layer, providing a high-end editorial experience without the data-privacy compromises of traditional note-taking apps.
 
 ---
 
-## ✨ Core Pillars
+## Core Pillars
 
-### 🏺 Zero-Party Data Strategy
+### 1. Zero-Party Data Strategy
 
 Unlike traditional SaaS platforms, **My Notebook does not store your content**. All notes, PDF highlights, and career mappings live exclusively in your own Google Drive. We provide the _lens and the tools_, you provide the _vault_.
 
-### 🏛️ Personal Curator Space
+### 2. Personal Curator Space
 
 An elegantly structured 3-column workspace designed to manage your life’s milestones:
 
@@ -23,7 +21,7 @@ An elegantly structured 3-column workspace designed to manage your life’s mile
 - **Jobs**: Role descriptions, interview prep, and career strategy.
 - **Archive**: A timeless repository for completed chapters.
 
-### 🧠 Editorial AI (Intelligence Layer)
+### 3. Editorial AI (Intelligence Layer)
 
 A sophisticated sidebar assistant that lives alongside your documents:
 
@@ -33,7 +31,7 @@ A sophisticated sidebar assistant that lives alongside your documents:
 
 ---
 
-## 🛠️ Technological Odyssey
+## Technological Odyssey
 
 ### **The Forge (Backend)**
 
@@ -84,17 +82,13 @@ npm run dev
 
 ### **Backend**
 
-Deployed on **Vercel**:
-
-1. Ensure `DATABASE_URL` points to your production PostgreSQL.
-2. Set up `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the environment.
-3. Use `npm run build` for production transpilation.
+Deployed on **Kubernetes Cluster**:
+[Open Backend](https://my-notebook-yashsingh045.nstsdc.org/)
 
 ### **Frontend**
 
 Deployed on **Vercel**:
 
-1. Point `VITE_API_URL` to your deployed backend.
-2. The UI is pre-optimized for performance via Vite’s build pipeline.
+[Open App](https://my-notebook-orcin.vercel.app/)
 
 ---
