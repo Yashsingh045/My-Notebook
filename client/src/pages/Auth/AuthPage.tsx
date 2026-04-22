@@ -141,7 +141,7 @@ const AuthPage: React.FC = () => {
             const url = await authService.getOAuthUrl();
             window.location.href = url;
         } catch {
-            setError('Failed to connect to Google.');
+            toast.error('Failed to connect to Google.');
             setLoading(false);
         }
     };
