@@ -78,9 +78,14 @@ const AuthPage: React.FC = () => {
     // Redirect if already logged in
     useEffect(() => {
         if (user) {
+            if (needsDriveConnection) {
+                // If they need drive connection, stay on the current page to show the "Connect" step
+                // or redirect if we were just trying to login
+            } else {
             navigate('/dashboard');
         }
-    }, [user, navigate]);
+        }
+    }, [user, needsDriveConnection, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -97,31 +102,22 @@ const AuthPage: React.FC = () => {
                         borderRadius: '10px',
                     },
                 });
-                // Navigation is handled by the useEffect when user state updates
+                navigate('/dashboard');
             } else {
-                // Registration flow - Step 1: Validate credentials
-                const registerResponse = await authService.register(formData);
-                
-                // Get signup token (temporary, 10-minute token for OAuth flow)
-                const signupToken = registerResponse.signupToken;
-                
-                // Store in sessionStorage (temporary, only for this OAuth flow)
-                sessionStorage.setItem('signupToken', signupToken);
-                
-                toast.success('Proceeding to Google authentication...', {
-                    duration: 2000,
+                // Registration flow
+                await authService.register(formData);
+                await login({ email: formData.email, password: formData.password });
+                toast.success('Account created successfully!', {
+                    duration: 4000,
                     style: {
                         background: '#333',
                         color: '#fff',
                         borderRadius: '10px',
                     },
                 });
-                
-                // Step 2: Redirect to Google OAuth
-                // OAuth will redirect to /oauth/signup with code
-                // OAuthSignupPage will pass signupToken + code to backend
-                const oauthUrl = await authService.getOAuthUrl('signup');
-                window.location.href = oauthUrl;
+                // After registration, AuthContext updates user state, 
+                // and useEffect will handle redirection if needed or 
+                // the UI will show the Connect Google step.
             }
         } catch (err) {
             const error = err as { response?: { data?: { message?: string } } };
@@ -142,19 +138,10 @@ const AuthPage: React.FC = () => {
     const handleGoogleConnect = async () => {
         setLoading(true);
         try {
-            // Use 'signup' redirect type for account creation, 'callback' for existing users
-            const redirectType = !user ? 'signup' : 'callback';
-            const url = await authService.getOAuthUrl(redirectType);
+            const url = await authService.getOAuthUrl();
             window.location.href = url;
         } catch {
-            toast.error('Failed to connect to Google.', {
-                duration: 4000,
-                style: {
-                    background: '#ef4444',
-                    color: '#fff',
-                    borderRadius: '10px',
-                },
-            });
+            setError('Failed to connect to Google.');
             setLoading(false);
         }
     };
@@ -162,6 +149,23 @@ const AuthPage: React.FC = () => {
     return (
         <AuthLayout>
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                {/* Teacher/Evaluator Note */}
+                <div className="bg-[#FFF8E6] border border-[#FFE7A3] p-4 rounded-xl flex gap-3 shadow-sm">
+                    <div className="w-8 h-8 bg-[#FFB800] rounded-lg flex items-center justify-center flex-shrink-0 text-white">
+                        <Sparkles size={16} />
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[11px] font-bold text-[#856404] uppercase tracking-wider">Evaluation Note</p>
+                        <p className="text-[12px] text-[#856404] leading-relaxed">
+                            This app is not yet verified by Google. For evaluation, please <b>do not sign up</b>. Use the following credentials to log in:
+                        </p>
+                        <div className="pt-1 flex flex-col gap-0.5">
+                            <p className="text-[12px] text-[#856404]"><b>Email:</b> astomar6396@gmail.com</p>
+                            <p className="text-[12px] text-[#856404]"><b>Password:</b> 1234qwer</p>
+                        </div>
+                    </div>
+                </div>
+
                 <h2 className="text-[2.5rem] font-bold text-[#1A1A1A] tracking-tight">
                     {isLogin ? 'Welcome to your archive.' : 'Create your vault.'}
                 </h2>

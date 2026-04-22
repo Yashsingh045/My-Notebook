@@ -24,9 +24,24 @@ const LandingPage: React.FC = () => {
           <div className="flex items-center gap-8">
             <span className="text-xl font-bold tracking-tight text-[#00337C]">My Notebook</span>
             <div className="hidden md:flex items-center gap-6">
-              <a href="#" className="text-sm font-semibold text-[#00337C] border-b-2 border-[#00337C] pb-1">Home</a>
-              <a href="#" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Vision</a>
-              <a href="#" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">Features</a>
+              <button 
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="text-sm font-semibold text-[#00337C] border-b-2 border-[#00337C] pb-1"
+              >
+                Home
+              </button>
+              <button 
+                onClick={() => document.getElementById('vision-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                Vision
+              </button>
+              <button 
+                onClick={() => document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                Features
+              </button>
             </div>
           </div>
           
@@ -117,7 +132,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Narrative Section */}
-      <section className="py-24 px-6 bg-white">
+      <section id="vision-section" className="py-24 px-6 bg-white">
         <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-20 items-center">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-4">
@@ -174,7 +189,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Intelligent Primitives Section */}
-      <section className="py-24 px-6 bg-[#F9F9F9]">
+      <section id="features-section" className="py-24 px-6 bg-[#F9F9F9]">
         <div className="max-w-7xl mx-auto text-center space-y-4 mb-20">
           <h2 className="text-4xl font-bold text-[#1A1A1A]">Intelligent Primitives</h2>
           <p className="text-gray-500 max-w-2xl mx-auto leading-relaxed">
